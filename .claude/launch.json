@@ -4,11 +4,10 @@
     {
       "name": "dev",
       "runtimeExecutable": "npm",
-      "runtimeArgs": [
-        "run",
-        "dev"
-      ],
-      "port": 3000
+      "runtimeArgs": ["run", "dev:console"],
+      "port": 4200,
+      "url": "http://localhost:4200",
+      "autoPort": false
     }
   ]
 }
