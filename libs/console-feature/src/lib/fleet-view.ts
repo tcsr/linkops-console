@@ -7,7 +7,7 @@ import {
 } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
 import { FleetStore } from '@linkops/console-data-access';
-import { FleetTable, KpiHeader } from '@linkops/console-ui';
+import { FleetTable, KpiHeader, ThemeToggle } from '@linkops/console-ui';
 import {
   DEFAULT_FILTER,
   parseFilter,
@@ -30,16 +30,20 @@ import {
 @Component({
   selector: 'app-fleet-view',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [KpiHeader, FleetTable],
+  imports: [KpiHeader, FleetTable, ThemeToggle],
   template: `
     <header class="bar">
       <div class="title">
+        <p class="brand">LinkOps Console</p>
         <h1>Fleet</h1>
         <p class="sub">Live operator console — point-to-point radio links</p>
       </div>
-      <span class="conn" [attr.data-state]="store.connection()">
-        <span class="pip" aria-hidden="true"></span>{{ store.connection() }}
-      </span>
+      <div class="tools">
+        <span class="conn" [attr.data-state]="store.connection()">
+          <span class="pip" aria-hidden="true"></span>{{ store.connection() }}
+        </span>
+        <lo-theme-toggle />
+      </div>
     </header>
 
     <lo-kpi-header [summary]="store.summary()" />
@@ -106,9 +110,14 @@ import {
   styles: `
     :host { display: block; padding: 2rem 1.5rem 3rem; max-width: 74rem; margin: 0 auto; }
     .bar { display: flex; align-items: flex-start; justify-content: space-between; gap: 1rem; margin-bottom: 1.5rem; }
+    .tools { display: flex; align-items: center; gap: 0.6rem; }
+    .brand {
+      margin: 0 0 0.15rem; font-size: 0.7rem; font-weight: 750; letter-spacing: 0.14em;
+      text-transform: uppercase; color: var(--brand, #ea4a1e);
+    }
     h1 {
-      margin: 0; font-size: 1.9rem; font-weight: 760; letter-spacing: -0.03em;
-      background: linear-gradient(120deg, #fff, #9db4d6);
+      margin: 0; font-size: 1.95rem; font-weight: 760; letter-spacing: -0.03em;
+      background: linear-gradient(120deg, var(--text, #1b2a38), var(--accent, #1399ae));
       -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;
     }
     .sub { margin: 0.15rem 0 0; font-size: 0.85rem; color: var(--muted, #8b98ab); }

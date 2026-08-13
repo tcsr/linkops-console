@@ -1,7 +1,54 @@
+/*
+ * Theme tokens. Default = RADWIN light (white surfaces, navy text, teal accent,
+ * orange-red brand). `:root[data-theme="dark"]` swaps to the premium dark set.
+ * The ThemeToggle writes data-theme onto <html>; every component reads these
+ * custom properties, so redefining them here re-skins the whole app.
+ */
 :root {
-  color-scheme: dark;
+  color-scheme: light;
 
   /* surfaces */
+  --bg-0: #eef1f5;
+  --bg-1: #f4f6f8;
+  --panel: #ffffff;
+  --panel-2: #f7f9fb;
+  --border: #e4e8ee;
+  --border-strong: #d3dae2;
+
+  /* text */
+  --text: #1b2a38;
+  --muted: #64707e;
+  --faint: #95a0ad;
+
+  /* status */
+  --up: #12a150;
+  --up-dim: rgba(18, 161, 80, 0.12);
+  --degraded: #c2760a;
+  --degraded-dim: rgba(194, 118, 10, 0.13);
+  --down: #dc2626;
+  --down-dim: rgba(220, 38, 38, 0.1);
+
+  /* brand */
+  --accent: #1399ae; /* RADWIN teal — interactive */
+  --accent-dim: rgba(19, 153, 174, 0.13);
+  --brand: #ea4a1e; /* RADWIN orange-red — brand mark */
+
+  --radius: 16px;
+  --radius-sm: 10px;
+  --shadow: 0 1px 2px rgba(16, 32, 48, 0.06), 0 14px 30px -18px rgba(16, 32, 48, 0.22);
+  --page-bg:
+    radial-gradient(1100px 560px at 12% -12%, rgba(19, 153, 174, 0.08), transparent 60%),
+    radial-gradient(900px 620px at 100% -8%, rgba(234, 74, 30, 0.06), transparent 55%),
+    var(--bg-0);
+
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto,
+    system-ui, sans-serif;
+  font-feature-settings: 'cv11', 'ss01';
+}
+
+:root[data-theme='dark'] {
+  color-scheme: dark;
+
   --bg-0: #080b11;
   --bg-1: #0d121b;
   --panel: #131a25;
@@ -9,12 +56,10 @@
   --border: #212b3a;
   --border-strong: #2c3849;
 
-  /* text */
   --text: #e8eef7;
   --muted: #8b98ab;
   --faint: #586478;
 
-  /* status */
   --up: #34d399;
   --up-dim: rgba(52, 211, 153, 0.13);
   --degraded: #fbbf24;
@@ -22,16 +67,15 @@
   --down: #f87171;
   --down-dim: rgba(248, 113, 113, 0.13);
 
-  --accent: #6ea8fe;
-  --accent-dim: rgba(110, 168, 254, 0.14);
+  --accent: #3cc4da;
+  --accent-dim: rgba(60, 196, 218, 0.14);
+  --brand: #ff6a3d;
 
-  --radius: 16px;
-  --radius-sm: 10px;
   --shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 12px 32px -16px rgba(0, 0, 0, 0.7);
-
-  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto,
-    system-ui, sans-serif;
-  font-feature-settings: 'cv11', 'ss01';
+  --page-bg:
+    radial-gradient(1200px 600px at 15% -10%, rgba(60, 196, 218, 0.08), transparent 60%),
+    radial-gradient(1000px 700px at 100% 0%, rgba(255, 106, 61, 0.05), transparent 55%),
+    var(--bg-0);
 }
 
 * {
@@ -46,11 +90,18 @@ body {
 body {
   margin: 0;
   color: var(--text);
-  background:
-    radial-gradient(1200px 600px at 15% -10%, rgba(110, 168, 254, 0.08), transparent 60%),
-    radial-gradient(1000px 700px at 100% 0%, rgba(52, 211, 153, 0.05), transparent 55%),
-    var(--bg-0);
+  background: var(--page-bg);
   background-attachment: fixed;
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
+}
+
+/* RADWIN brand stripe across the top of the page */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0 0 auto 0;
+  height: 3px;
+  background: linear-gradient(90deg, var(--brand), color-mix(in srgb, var(--brand) 55%, var(--accent)));
+  z-index: 10;
 }
