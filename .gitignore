@@ -52,3 +52,6 @@ Thumbs.db
 .nx/self-healing
 .nx/migrate-runs
 test-output
+
+# TypeScript incremental build info
+*.tsbuildinfo
