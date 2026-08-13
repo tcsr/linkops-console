@@ -37,6 +37,15 @@ export class TelemetryStreamService implements TelemetrySink {
   /** Last emitted status per link — for transition detection only. */
   private readonly lastStatus = new Map<LinkId, LinkStatus>();
 
+  /**
+   * Serialization tail. Each incoming batch chains onto this promise, so a
+   * batch never begins until the previous one has fully settled — even if
+   * repository/FleetService calls become slow or genuinely asynchronous. The
+   * chain is failure-tolerant: a rejected batch is caught here so the tail
+   * always resolves and the next batch still runs. Not part of the public API.
+   */
+  private tail: Promise<void> = Promise.resolve();
+
   constructor(
     @Inject(LINK_REPOSITORY) private readonly repository: LinkRepository,
     private readonly bus: FleetEventBus,
@@ -46,14 +55,27 @@ export class TelemetryStreamService implements TelemetrySink {
   /**
    * {@link TelemetrySink} entry point called by the simulator at end of tick.
    *
-   * Fire-and-forget: the simulator never awaits the sink, and any failure in
-   * event processing is contained here so it can never destabilize telemetry
-   * production. The awaitable core is {@link handleTick} (used by tests).
+   * Fire-and-forget and strictly serialized: the simulator never awaits the
+   * sink, batches are processed one at a time in arrival order, and any failure
+   * in event processing is contained here so it can neither destabilize
+   * telemetry production nor block later batches. The awaitable core is
+   * {@link handleTick} (used by tests).
    */
   emit(samples: readonly TelemetrySample[]): void {
-    void this.handleTick(samples).catch((error: unknown) => {
-      console.error('[telemetry-stream] tick processing failed', error);
-    });
+    this.tail = this.tail.then(() =>
+      this.handleTick(samples).catch((error: unknown) => {
+        console.error('[telemetry-stream] tick processing failed', error);
+      }),
+    );
+  }
+
+  /**
+   * Resolve once all batches enqueued so far have finished processing. Exposed
+   * for deterministic tests and lifecycle draining only; it reveals nothing
+   * about the internal queue.
+   */
+  whenIdle(): Promise<void> {
+    return this.tail;
   }
 
   /**
