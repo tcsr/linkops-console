@@ -30,6 +30,7 @@ function sample(overrides: Partial<TelemetrySample> = {}): TelemetrySample {
   return {
     linkId: link.id,
     ts: NOW.toISOString(),
+    rssiDbm: -55,
     snrDb: 30,
     throughputMbps: 90,
     ...overrides,

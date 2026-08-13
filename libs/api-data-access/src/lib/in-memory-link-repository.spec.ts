@@ -196,6 +196,7 @@ describe('InMemoryLinkRepository', () => {
       return {
         linkId: id,
         ts: new Date(ms).toISOString(),
+        rssiDbm: -55,
         snrDb: 20,
         throughputMbps: 100,
         ...over,
