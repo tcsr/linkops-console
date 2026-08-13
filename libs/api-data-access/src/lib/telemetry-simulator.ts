@@ -1,4 +1,10 @@
-import type { Link, LinkId, LinkRepository, TelemetrySample } from '@linkops/domain';
+import type {
+  Link,
+  LinkId,
+  LinkRepository,
+  TelemetrySample,
+  TelemetrySink,
+} from '@linkops/domain';
 
 /**
  * Tunable simulator constants. These are implementation decisions (plausible
@@ -70,6 +76,14 @@ export interface TelemetrySimulatorOptions {
    * (no unhandled rejection) and later ticks continue. Default logs to stderr.
    */
   readonly onError?: (error: unknown) => void;
+  /**
+   * Optional outbound sink (M4 seam). Receives the completed batch of samples
+   * at the end of each successful tick — one call per tick, carrying all
+   * samples. Default: absent (no-op). The simulator never awaits it and stays
+   * free of any transport/RxJS/NestJS concern; a synchronous throw from
+   * `emit` is contained by the existing {@link runTick} error boundary.
+   */
+  readonly sink?: TelemetrySink;
 }
 
 /** Per-link simulation state. Bounded to the current fleet; no sample history. */
@@ -110,6 +124,7 @@ export class TelemetrySimulatorService {
   private readonly random: () => number;
   private readonly intervalMs: number;
   private readonly onError: (error: unknown) => void;
+  private readonly sink: TelemetrySink | undefined;
   private readonly state = new Map<LinkId, LinkSimState>();
   private handle: ReturnType<typeof setInterval> | undefined;
   /** True while a tick is executing — guards against overlapping ticks. */
@@ -127,6 +142,7 @@ export class TelemetrySimulatorService {
       ((error) => {
         console.error('[telemetry-simulator] tick failed', error);
       });
+    this.sink = options.sink;
   }
 
   /** True while the single global interval is active. */
@@ -210,11 +226,13 @@ export class TelemetrySimulatorService {
     const links = await this.repository.list({});
     const ts = new Date(this.clock()).toISOString();
     const alive = new Set<LinkId>();
+    const batch: TelemetrySample[] = [];
 
     for (const link of links) {
       alive.add(link.id);
       const sample = this.advance(link, ts);
       this.repository.appendSample(sample);
+      batch.push(sample);
     }
 
     // Prune simulation state for links that left the fleet (bounded memory).
@@ -223,6 +241,12 @@ export class TelemetrySimulatorService {
         this.state.delete(id);
       }
     }
+
+    // M4 seam: hand the completed tick's batch to the optional sink. One call
+    // per tick with all samples (never one per sample). The simulator does not
+    // await the sink; a synchronous throw here propagates to runTick's error
+    // boundary and is routed to onError, so telemetry stays contained.
+    this.sink?.emit(batch);
   }
 
   /** Advance one link's simulation state by a tick and produce its sample. */

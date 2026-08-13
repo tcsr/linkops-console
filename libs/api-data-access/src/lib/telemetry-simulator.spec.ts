@@ -4,6 +4,8 @@ import {
   type Link,
   type LinkRepository,
   type LinkStatus,
+  type TelemetrySample,
+  type TelemetrySink,
 } from '@linkops/domain';
 import { InMemoryLinkRepository } from './in-memory-link-repository.js';
 import { createSeedLinks } from './seed-links.js';
@@ -239,6 +241,95 @@ describe('TelemetrySimulatorService', () => {
       await sim.tick();
       expect(repo.latestSample(created.id)).toBeDefined();
       expect(repo.latestSample(created.id)?.linkId).toBe(created.id);
+    });
+  });
+
+  describe('telemetry sink seam (M4 Phase 1/2)', () => {
+    it('does nothing new when no sink is provided (default no-op)', async () => {
+      const links = createSeedLinks();
+      const { repo, sim } = repoWith(links, constRandom(0.5));
+
+      // Behaves exactly like the sink-less M2 simulator: one sample per link.
+      await expect(sim.tick()).resolves.toBeUndefined();
+      for (const link of links) {
+        expect(repo.latestSample(link.id)).toBeDefined();
+      }
+    });
+
+    it('emits the completed batch to the sink exactly once with one sample per link', async () => {
+      const links = createSeedLinks(); // 10 links
+      const calls: ReadonlyArray<TelemetrySample>[] = [];
+      const sink: TelemetrySink = { emit: (samples) => calls.push(samples) };
+      const repo = new InMemoryLinkRepository({
+        seed: links,
+        clock: () => FIXED_MS,
+      });
+      const sim = new TelemetrySimulatorService(repo, {
+        clock: () => FIXED_MS,
+        random: constRandom(0.5),
+        sink,
+      });
+
+      await sim.tick();
+
+      // one call per tick (not one per sample), carrying all N samples
+      expect(calls).toHaveLength(1);
+      expect(calls[0]).toHaveLength(links.length);
+
+      // the batch is exactly what was appended to the repository
+      for (const link of links) {
+        const emitted = calls[0].find((s) => s.linkId === link.id);
+        expect(emitted).toBeDefined();
+        expect(emitted).toEqual(repo.latestSample(link.id));
+      }
+    });
+
+    it('emits once per tick across multiple ticks', async () => {
+      const links = createSeedLinks();
+      let emitCount = 0;
+      const sink: TelemetrySink = { emit: () => emitCount++ };
+      const repo = new InMemoryLinkRepository({
+        seed: links,
+        clock: () => FIXED_MS,
+      });
+      const sim = new TelemetrySimulatorService(repo, {
+        clock: () => FIXED_MS,
+        random: constRandom(0.5),
+        sink,
+      });
+
+      await sim.tick();
+      await sim.tick();
+      await sim.tick();
+
+      expect(emitCount).toBe(3);
+    });
+
+    it('contains a synchronously throwing sink via the existing tick error boundary', async () => {
+      const [seed] = createSeedLinks();
+      const errors: unknown[] = [];
+      const sink: TelemetrySink = {
+        emit: () => {
+          throw new Error('sink boom');
+        },
+      };
+      const repo = new InMemoryLinkRepository({
+        seed: [seed],
+        clock: () => FIXED_MS,
+      });
+      const sim = new TelemetrySimulatorService(repo, {
+        clock: () => FIXED_MS,
+        random: constRandom(0.5),
+        onError: (e) => errors.push(e),
+        sink,
+      });
+
+      // runTick contains the throw: no unhandled error escapes, onError fires,
+      // the in-flight flag is cleared. Samples were still appended before emit.
+      await expect(sim.runTick()).resolves.toBeUndefined();
+      expect(errors).toHaveLength(1);
+      expect(sim.busy).toBe(false);
+      expect(repo.latestSample(seed.id)).toBeDefined();
     });
   });
 
