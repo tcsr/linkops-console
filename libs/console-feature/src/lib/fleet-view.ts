@@ -7,7 +7,7 @@ import {
 } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
 import { FleetStore } from '@linkops/console-data-access';
-import { FleetTable, KpiHeader, ThemeToggle } from '@linkops/console-ui';
+import { FleetTable, KpiHeader } from '@linkops/console-ui';
 import {
   DEFAULT_FILTER,
   parseFilter,
@@ -30,20 +30,16 @@ import {
 @Component({
   selector: 'app-fleet-view',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [KpiHeader, FleetTable, ThemeToggle],
+  imports: [KpiHeader, FleetTable],
   template: `
     <header class="bar">
       <div class="title">
-        <p class="brand">LinkOps Console</p>
         <h1>Fleet</h1>
         <p class="sub">Live operator console — point-to-point radio links</p>
       </div>
-      <div class="tools">
-        <span class="conn" [attr.data-state]="store.connection()">
-          <span class="pip" aria-hidden="true"></span>{{ store.connection() }}
-        </span>
-        <lo-theme-toggle />
-      </div>
+      <span class="conn" [attr.data-state]="store.connection()">
+        <span class="pip" aria-hidden="true"></span>{{ store.connection() }}
+      </span>
     </header>
 
     <lo-kpi-header [summary]="store.summary()" />
@@ -92,29 +88,51 @@ import {
       </label>
     </div>
 
+    @if (view() === 'ready') {
+      <div class="toolbar">
+        <span class="count">
+          Showing <b>{{ rows().length }}</b> of {{ totalCount() }} links
+        </span>
+        @if (hasActiveFilters()) {
+          <button type="button" class="clear" (click)="clear()">Clear filters</button>
+        }
+      </div>
+    }
+
     @switch (view()) {
       @case ('loading') {
-        <p class="msg" aria-busy="true">Loading fleet…</p>
+        <div class="skeleton-list" aria-busy="true">
+          <span class="sr">Loading fleet…</span>
+          @for (i of [1, 2, 3, 4, 5, 6]; track i) {
+            <div class="skeleton-row"></div>
+          }
+        </div>
       }
       @case ('error') {
-        <p class="msg error" role="alert">{{ store.error() }}</p>
+        <div class="msg error" role="alert">
+          <strong>Could not load the fleet.</strong>
+          <span>{{ store.error() }}</span>
+        </div>
       }
       @case ('empty') {
-        <p class="msg">No links in the fleet.</p>
+        <div class="msg empty-state">
+          <span class="glyph" aria-hidden="true">◎</span>
+          <strong>No links in the fleet.</strong>
+          <span>Seeded links appear here once the API is running.</span>
+        </div>
       }
       @default {
         <lo-fleet-table [rows]="rows()" />
       }
     }
+
+    <footer class="foot">
+      LinkOps Console · live telemetry over SSE · data in-memory
+    </footer>
   `,
   styles: `
-    :host { display: block; padding: 2rem 1.5rem 3rem; max-width: 74rem; margin: 0 auto; }
+    :host { display: block; padding: 1.75rem 1.5rem 2rem; max-width: 76rem; margin: 0 auto; }
     .bar { display: flex; align-items: flex-start; justify-content: space-between; gap: 1rem; margin-bottom: 1.5rem; }
-    .tools { display: flex; align-items: center; gap: 0.6rem; }
-    .brand {
-      margin: 0 0 0.15rem; font-size: 0.7rem; font-weight: 750; letter-spacing: 0.14em;
-      text-transform: uppercase; color: var(--brand, #ea4a1e);
-    }
     h1 {
       margin: 0; font-size: 1.95rem; font-weight: 760; letter-spacing: -0.03em;
       background: linear-gradient(120deg, var(--text, #1b2a38), var(--accent, #1399ae));
@@ -161,8 +179,36 @@ import {
     .select.narrow { min-width: 5.5rem; }
     .field option { background: var(--panel-2, #18212f); color: var(--text, #e8eef7); }
 
-    .msg { color: var(--muted, #8b98ab); padding: 2rem 0.25rem; font-size: 0.95rem; }
-    .msg.error { color: var(--down, #f87171); }
+    .toolbar { display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.6rem; min-height: 1.6rem; }
+    .count { font-size: 0.8rem; color: var(--muted); }
+    .count b { color: var(--text); font-variant-numeric: tabular-nums; }
+    .clear {
+      font: inherit; font-size: 0.78rem; font-weight: 600; cursor: pointer;
+      color: var(--accent); background: none; border: none; padding: 0.2rem 0.3rem; border-radius: 6px;
+    }
+    .clear:hover { text-decoration: underline; }
+
+    .msg {
+      display: flex; flex-direction: column; gap: 0.3rem; align-items: center;
+      text-align: center; color: var(--muted); padding: 3rem 1rem; font-size: 0.9rem;
+      border: 1px dashed var(--border); border-radius: var(--radius);
+    }
+    .msg strong { color: var(--text); font-size: 1rem; }
+    .msg.error { border-color: color-mix(in srgb, var(--down) 40%, transparent); }
+    .msg.error strong { color: var(--down); }
+    .empty-state .glyph { font-size: 2rem; color: var(--faint); }
+
+    .skeleton-list { display: flex; flex-direction: column; gap: 0.5rem; }
+    .skeleton-row {
+      height: 3rem; border-radius: var(--radius-sm);
+      background: linear-gradient(90deg, var(--panel) 0%, var(--panel-2) 50%, var(--panel) 100%);
+      background-size: 200% 100%; border: 1px solid var(--border);
+      animation: shimmer 1.4s ease-in-out infinite;
+    }
+    @keyframes shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
+    .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+
+    .foot { margin-top: 2rem; padding-top: 1rem; border-top: 1px solid var(--border); font-size: 0.72rem; color: var(--faint); text-align: center; }
   `,
 })
 export class FleetView {
@@ -190,6 +236,19 @@ export class FleetView {
   protected readonly rows = computed(() =>
     selectRows(this.store.rows(), this.filter()),
   );
+
+  protected readonly totalCount = computed(() => this.store.rows().length);
+
+  protected readonly hasActiveFilters = computed(() => {
+    const f = this.filter();
+    return (
+      f.status !== DEFAULT_FILTER.status ||
+      f.band !== DEFAULT_FILTER.band ||
+      f.q !== DEFAULT_FILTER.q ||
+      f.sort !== DEFAULT_FILTER.sort ||
+      f.order !== DEFAULT_FILTER.order
+    );
+  });
 
   protected readonly view = computed<'loading' | 'error' | 'empty' | 'ready'>(
     () => {
@@ -221,5 +280,10 @@ export class FleetView {
       queryParams: { [key]: isDefault ? null : value },
       queryParamsHandling: 'merge',
     });
+  }
+
+  /** Reset all filter/sort state — clears every query param. */
+  protected clear(): void {
+    void this.router.navigate([], { relativeTo: this.route, queryParams: {} });
   }
 }
