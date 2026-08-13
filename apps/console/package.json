@@ -5,101 +5,69 @@
   "nx": {
     "targets": {
       "build": {
-        "executor": "@nx/esbuild:esbuild",
-        "outputs": [
-          "{options.outputPath}"
-        ],
+        "executor": "@angular/build:application",
+        "outputs": ["{options.outputPath}"],
         "defaultConfiguration": "production",
         "options": {
-          "platform": "node",
           "outputPath": "apps/console/dist",
-          "format": [
-            "cjs"
-          ],
-          "bundle": false,
-          "main": "apps/console/src/main.ts",
+          "index": "apps/console/src/index.html",
+          "browser": "apps/console/src/main.ts",
           "tsConfig": "apps/console/tsconfig.app.json",
           "assets": [
-            "apps/console/src/assets"
+            { "glob": "**/*", "input": "apps/console/src/assets" }
           ],
-          "esbuildOptions": {
-            "sourcemap": true,
-            "outExtension": {
-              ".js": ".js"
-            }
-          }
+          "styles": ["apps/console/src/styles.css"],
+          "polyfills": []
         },
         "configurations": {
-          "development": {},
           "production": {
-            "esbuildOptions": {
-              "sourcemap": false,
-              "outExtension": {
-                ".js": ".js"
-              }
-            }
+            "outputHashing": "all",
+            "budgets": [
+              { "type": "initial", "maximumWarning": "500kb", "maximumError": "1mb" },
+              { "type": "anyComponentStyle", "maximumWarning": "4kb", "maximumError": "8kb" }
+            ]
+          },
+          "development": {
+            "optimization": false,
+            "extractLicenses": false,
+            "sourceMap": true
           }
         }
-      },
-      "prune-lockfile": {
-        "dependsOn": [
-          "build"
-        ],
-        "cache": true,
-        "executor": "@nx/js:prune-lockfile",
-        "outputs": [
-          "{workspaceRoot}/apps/console/dist/package.json",
-          "{workspaceRoot}/apps/console/dist/package-lock.json"
-        ],
-        "options": {
-          "buildTarget": "build"
-        }
-      },
-      "copy-workspace-modules": {
-        "dependsOn": [
-          "build"
-        ],
-        "cache": true,
-        "outputs": [
-          "{workspaceRoot}/apps/console/dist/workspace_modules"
-        ],
-        "executor": "@nx/js:copy-workspace-modules",
-        "options": {
-          "buildTarget": "build"
-        }
-      },
-      "prune": {
-        "dependsOn": [
-          "prune-lockfile",
-          "copy-workspace-modules"
-        ],
-        "executor": "nx:noop"
       },
       "serve": {
-        "continuous": true,
-        "executor": "@nx/js:node",
+        "executor": "@angular/build:dev-server",
         "defaultConfiguration": "development",
-        "dependsOn": [
-          "build"
-        ],
+        "continuous": true,
         "options": {
           "buildTarget": "@linkops/console:build",
-          "runBuildTargetDependencies": false
+          "port": 4200,
+          "proxyConfig": "apps/console/proxy.conf.json"
         },
         "configurations": {
-          "development": {
-            "buildTarget": "@linkops/console:build:development"
-          },
-          "production": {
-            "buildTarget": "@linkops/console:build:production"
-          }
+          "development": { "buildTarget": "@linkops/console:build:development" },
+          "production": { "buildTarget": "@linkops/console:build:production" }
+        }
+      },
+      "typecheck": {
+        "executor": "nx:run-commands",
+        "options": {
+          "command": "tsc --noEmit -p apps/console/tsconfig.app.json"
         }
       }
     },
-    "tags": [
-      "scope:console",
-      "type:app"
-    ]
+    "tags": ["scope:console", "type:app"]
   },
-  "dependencies": {}
+  "dependencies": {
+    "@angular/common": "^22.1.1",
+    "@angular/core": "^22.1.1",
+    "@angular/forms": "^22.1.1",
+    "@angular/platform-browser": "^22.1.1",
+    "@angular/router": "^22.1.1",
+    "@linkops/console-data-access": "*",
+    "@linkops/console-feature": "*",
+    "@linkops/console-ui": "*",
+    "@linkops/domain": "*",
+    "rxjs": "^7.8.2",
+    "tslib": "^2.3.0"
+  }
 }
