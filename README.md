@@ -5,12 +5,12 @@ telemetry, status derivation, and link management. Built as an Nx workspace with
 strict, enforced architectural boundaries between a framework-independent domain
 core, data-access layers, feature layers, and the two applications (`api`, `console`).
 
-> **Milestone:** M2 — Telemetry Simulator
+> **Milestone:** M3 — REST API
 > **Status:** Implementation complete / pending review
 >
-> The domain, in-memory persistence, and the 1 Hz telemetry simulator are
-> implemented. There is still no HTTP server, SSE, or UI — those arrive in later
-> milestones.
+> The domain, in-memory persistence, the 1 Hz telemetry simulator, and a real
+> NestJS REST API are implemented. There is still no SSE or UI — those arrive in
+> later milestones.
 >
 > **AI usage:** parts of this codebase were implemented with AI assistance
 > (Claude Code) under human direction and review; all commits are authored by the
@@ -57,8 +57,7 @@ npx nx run-many -t build
 Convenience npm scripts mirror these: `npm test`, `npm run typecheck`,
 `npm run lint`, `npm run build`.
 
-Run the API composition shell (M2: seeds the fleet and starts the 1 Hz
-telemetry simulator — no HTTP yet):
+Run the API (NestJS REST server; seeds the fleet and starts the 1 Hz simulator):
 
 ```bash
 npx nx serve @linkops/api
@@ -67,7 +66,35 @@ npx nx serve @linkops/api
 Expected output:
 
 ```
-[linkops-api] M2 shell ready — seeded 10 links; telemetry simulator running at 1 Hz (no HTTP server yet).
+[linkops-api] M3 REST API listening on :3000
+```
+
+The port is configurable via `PORT`. SIGINT/SIGTERM shut down through the Nest
+lifecycle (simulator timer stopped, app closed) — no abrupt `process.exit`.
+
+### REST endpoints (M3)
+
+| Method & path | Purpose |
+| ------------- | ------- |
+| `GET /links` | List links (filter `band`/`mode`/`search`/`status`, sort `sort`+`order`). Each item includes derived `status` + `latestSample`. |
+| `GET /links/:id` | Single link view. |
+| `POST /links` | Create (201). |
+| `PATCH /links/:id` | Partial update; body requires `expectedVersion` (optimistic concurrency). |
+| `DELETE /links/:id` | Delete (204). |
+| `GET /links/:id/telemetry?windowMs=` | Telemetry window from the ring buffer (default 5 min). |
+| `GET /fleet/summary` | Domain `FleetSummary` (counts, avg throughput, worst link). |
+
+Validation is at the HTTP boundary (`class-validator` DTOs + a global
+`ValidationPipe`); domain models carry no framework decorators. Status codes:
+**400** validation / malformed id / bad name, **404** not found, **409** version
+conflict or duplicate name.
+
+**Error envelope** (implementation decision — M0 does not define one):
+
+```json
+{ "error": { "code": "VERSION_CONFLICT", "message": "...", "statusCode": 409,
+             "timestamp": "2025-06-01T00:00:00.000Z", "path": "/links/link-0001",
+             "details": { "expectedVersion": 99, "actualVersion": 2 } } }
 ```
 
 > **Nx sync:** this workspace uses TypeScript project references. After changing
@@ -140,8 +167,8 @@ other; both may depend on `scope:shared` (the domain).
 | Milestone | Description | Status |
 | --------- | ----------- | ------ |
 | **M1** | Domain + in-memory store | ✅ complete |
-| **M2** | Telemetry simulator (1 Hz) | ✅ implementation complete / pending review |
-| M3 | REST API (controllers, DTOs, validation, error mapping) | ⏳ not started |
+| **M2** | Telemetry simulator (1 Hz) | ✅ complete |
+| **M3** | REST API (NestJS controllers, DTOs, validation, error envelope) | ✅ implementation complete / pending review |
 | M4 | SSE stream + client | ⏳ not started |
 | M5 | Fleet view UI | ⏳ not started |
 | M6 | Link detail + edit UI | ⏳ not started |
@@ -186,9 +213,19 @@ See [`docs/architecture/telemetry.md`](docs/architecture/telemetry.md).
 - Deterministic simulator tests (injected clock + RNG; no real-time sleeps).
 - Telemetry architecture doc; simulator wired into the API composition shell.
 
+### Completed in M3
+
+- Real NestJS REST API in `libs/api-feature` (controllers, DTOs, services,
+  global validation pipe, global exception filter + consistent error envelope).
+- CRUD + filtering + sorting + telemetry + fleet-summary endpoints, all through
+  the repository abstraction (controllers never touch Map/RingBuffer internals).
+- `TelemetrySimulatorService` hardened + wired as a NestJS provider: non-overlapping
+  ticks, contained tick errors, Nest-owned startup/shutdown, graceful SIGTERM/SIGINT.
+- Real NestJS integration tests (`@nestjs/testing` + supertest).
+- REST architecture doc.
+
 ### Not yet implemented
 
-- M3 REST controllers, DTOs, validation, HTTP error mapping
 - M4 SSE stream/client, EventBus, and reconnect logic
 - M5 fleet UI · M6 detail/edit UI · M7 concurrency & error UX
-- Angular console app, MongoDB, Docker/K8s, and all other M3+ concerns
+- Angular console app, MongoDB, Docker/K8s, and all other M4+ concerns

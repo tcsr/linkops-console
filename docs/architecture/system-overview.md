@@ -134,7 +134,15 @@ buffers so derived status becomes meaningful. It generates one sample per link
 per tick, drifts values plausibly, and occasionally degrades a link — without
 ever writing status. See [`telemetry.md`](telemetry.md) for the full design.
 
-## What is intentionally absent (M3+)
+## REST API (M3)
 
-EventBus, REST/DTOs/validation, SSE and reconnect, Angular UI and charts,
-MongoDB, Docker/Kubernetes. See the README milestone table.
+A real NestJS REST layer lives in `libs/api-feature` (controllers, DTOs,
+application services, global validation pipe, and a global exception filter with
+a consistent error envelope). It reaches storage only through the
+`LinkRepository` abstraction, and the telemetry simulator is a NestJS-managed
+provider with Nest-owned startup/shutdown. See [`rest-api.md`](rest-api.md).
+
+## What is intentionally absent (M4+)
+
+EventBus, SSE and reconnect, Angular UI and charts, MongoDB, Docker/Kubernetes.
+See the README milestone table.
