@@ -37,6 +37,9 @@
     }
   ],
   "analytics": false,
+  "sync": {
+    "disabledTaskSyncGenerators": ["@nx/js:typescript-sync"]
+  },
   "targetDefaults": {
     "@nx/jest:jest": {
       "cache": true,

@@ -24,19 +24,5 @@
     "strictTemplates": true,
     "strictInjectionParameters": true,
     "strictInputAccessModifiers": true
-  },
-  "references": [
-    {
-      "path": "../../libs/domain"
-    },
-    {
-      "path": "../../libs/console-ui"
-    },
-    {
-      "path": "../../libs/console-feature"
-    },
-    {
-      "path": "../../libs/console-data-access"
-    }
-  ]
+  }
 }

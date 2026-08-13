@@ -5,19 +5,5 @@
   },
   "files": ["src/main.ts"],
   "include": ["src/**/*.ts"],
-  "exclude": ["src/**/*.spec.ts", "src/test-setup.ts"],
-  "references": [
-    {
-      "path": "../../libs/domain/tsconfig.lib.json"
-    },
-    {
-      "path": "../../libs/console-ui/tsconfig.lib.json"
-    },
-    {
-      "path": "../../libs/console-feature/tsconfig.lib.json"
-    },
-    {
-      "path": "../../libs/console-data-access/tsconfig.lib.json"
-    }
-  ]
+  "exclude": ["src/**/*.spec.ts", "src/test-setup.ts"]
 }
