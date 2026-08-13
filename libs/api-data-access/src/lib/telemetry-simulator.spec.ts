@@ -2,6 +2,7 @@ import {
   deriveLinkStatus,
   type CreateLinkInput,
   type Link,
+  type LinkRepository,
   type LinkStatus,
 } from '@linkops/domain';
 import { InMemoryLinkRepository } from './in-memory-link-repository.js';
@@ -238,6 +239,65 @@ describe('TelemetrySimulatorService', () => {
       await sim.tick();
       expect(repo.latestSample(created.id)).toBeDefined();
       expect(repo.latestSample(created.id)?.linkId).toBe(created.id);
+    });
+  });
+
+  describe('scheduled tick hardening (M3)', () => {
+    it('does not overlap: a second runTick while one is in flight is skipped', async () => {
+      const [seed] = createSeedLinks();
+      const { repo, sim } = repoWith([seed], constRandom(0.5));
+
+      // runTick() runs synchronously up to the first await (repository.list),
+      // setting inFlight before returning its promise. The second call therefore
+      // sees inFlight === true and is skipped — only one pass runs.
+      const p1 = sim.runTick();
+      expect(sim.busy).toBe(true);
+      const p2 = sim.runTick();
+      await Promise.all([p1, p2]);
+
+      expect(repo.getSamples(seed.id, Number.MAX_SAFE_INTEGER)).toHaveLength(1);
+      expect(sim.busy).toBe(false);
+    });
+
+    it('contains a tick failure and lets later ticks succeed', async () => {
+      const [seed] = createSeedLinks();
+      const inner = new InMemoryLinkRepository({ seed: [seed], clock: () => FIXED_MS });
+      let failNext = true;
+      // Delegating repository whose first list() rejects, then behaves normally.
+      const flaky: LinkRepository = {
+        list: async (q) => {
+          if (failNext) {
+            failNext = false;
+            throw new Error('boom');
+          }
+          return inner.list(q);
+        },
+        getById: (id) => inner.getById(id),
+        create: (i) => inner.create(i),
+        update: (id, p, v) => inner.update(id, p, v),
+        delete: (id) => inner.delete(id),
+        appendSample: (s) => inner.appendSample(s),
+        getSamples: (id, w) => inner.getSamples(id, w),
+        latestSample: (id) => inner.latestSample(id),
+      };
+
+      const errors: unknown[] = [];
+      const sim = new TelemetrySimulatorService(flaky, {
+        clock: () => FIXED_MS,
+        random: constRandom(0.5),
+        onError: (e) => errors.push(e),
+      });
+
+      // 1) failing tick — contained, no throw, no sample, flag reset
+      await expect(sim.runTick()).resolves.toBeUndefined();
+      expect(errors).toHaveLength(1);
+      expect(inner.latestSample(seed.id)).toBeUndefined();
+      expect(sim.busy).toBe(false);
+
+      // 2) subsequent tick recovers and produces a sample; no new error
+      await sim.runTick();
+      expect(inner.latestSample(seed.id)).toBeDefined();
+      expect(errors).toHaveLength(1);
     });
   });
 });
