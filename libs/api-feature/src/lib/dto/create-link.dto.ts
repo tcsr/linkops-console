@@ -1,7 +1,6 @@
 import { Type } from 'class-transformer';
 import {
   IsIn,
-  IsInt,
   IsNumber,
   IsString,
   Length,
@@ -11,9 +10,9 @@ import {
 import { LINK_NAME_CONSTRAINTS } from '@linkops/domain';
 
 /** Runtime allow-lists mirroring the domain unions (used by @IsIn). */
-export const BANDS = ['5GHz', '6GHz', '24GHz', '60GHz'] as const;
-export const MODES = ['PtP', 'PtMP'] as const;
-export const CHANNEL_WIDTHS = [20, 40, 80, 160] as const;
+export const BANDS = ['5GHz', '5.8GHz', '11GHz', '24GHz'] as const;
+export const MODES = ['PtP', 'PtMP', 'S2S'] as const;
+export const CHANNEL_WIDTHS = [20, 40, 80] as const;
 
 /** Body for `POST /links`. Validated at the HTTP boundary; not a domain type. */
 export class CreateLinkDto {
@@ -41,11 +40,12 @@ export class CreateLinkDto {
 
   @Type(() => Number)
   @IsNumber()
-  @Min(1)
+  @Min(10)
+  @Max(1000)
   capacityMbps!: number;
 
   @Type(() => Number)
-  @IsInt()
+  @IsNumber()
   @Min(-10)
   @Max(30)
   txPowerDbm!: number;

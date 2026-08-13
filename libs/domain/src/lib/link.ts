@@ -7,18 +7,14 @@ import type { LinkId } from './link-id.js';
  */
 export type LinkStatus = 'up' | 'degraded' | 'down';
 
-/**
- * Radio frequency band. The concrete set below is an implementation decision
- * (a representative slice of RADWIN's licensed/unlicensed ranges), not a value
- * mandated by the assignment. Extend as later milestones require.
- */
-export type Band = '5GHz' | '6GHz' | '24GHz' | '60GHz';
+/** Radio frequency band. Values per the assignment domain model. */
+export type Band = '5GHz' | '5.8GHz' | '11GHz' | '24GHz';
 
-/** Point-to-Point or Point-to-Multipoint topology. */
-export type LinkMode = 'PtP' | 'PtMP';
+/** Link topology. Values per the assignment domain model. */
+export type LinkMode = 'PtP' | 'PtMP' | 'S2S';
 
-/** Channel width in MHz. Implementation-decision enum, kept small and typed. */
-export type ChannelWidth = 20 | 40 | 80 | 160;
+/** Channel width in MHz. Values per the assignment domain model. */
+export type ChannelWidth = 20 | 40 | 80;
 
 /**
  * A managed radio link in the fleet.
@@ -35,9 +31,9 @@ export interface Link {
   readonly band: Band;
   readonly mode: LinkMode;
   readonly channelWidthMhz: ChannelWidth;
-  /** Provisioned capacity in Mbps; the denominator for status thresholds. */
+  /** Provisioned capacity in Mbps (assignment range 10..1000); status denominator. */
   readonly capacityMbps: number;
-  /** Transmit power in dBm. Assignment constraint: -10..30. */
+  /** Transmit power in dBm. Assignment range: -10..30. */
   readonly txPowerDbm: number;
   readonly version: number;
   readonly createdAt: string;
