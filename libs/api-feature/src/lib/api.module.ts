@@ -11,6 +11,7 @@ import { LinksService } from './links.service.js';
 import { FleetService } from './fleet.service.js';
 import { LinksController } from './links.controller.js';
 import { FleetController } from './fleet.controller.js';
+import { StreamController } from './stream.controller.js';
 import { ApiExceptionFilter } from './api-exception.filter.js';
 import { FleetEventBus } from './fleet-event-bus.js';
 import { TelemetryStreamService } from './telemetry-stream.service.js';
@@ -26,7 +27,7 @@ import { TelemetryStreamService } from './telemetry-stream.service.js';
  * - Applies the global validation pipe and exception filter.
  */
 @Module({
-  controllers: [LinksController, FleetController],
+  controllers: [LinksController, FleetController, StreamController],
   providers: [
     {
       provide: LINK_REPOSITORY,

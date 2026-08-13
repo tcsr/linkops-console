@@ -6,6 +6,7 @@ export { FleetService } from './lib/fleet.service.js';
 export { ApiExceptionFilter } from './lib/api-exception.filter.js';
 export { FleetEventBus } from './lib/fleet-event-bus.js';
 export { TelemetryStreamService } from './lib/telemetry-stream.service.js';
+export { StreamController } from './lib/stream.controller.js';
 export type {
   FleetEvent,
   FleetSummaryEvent,
