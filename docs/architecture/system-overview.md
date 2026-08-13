@@ -142,7 +142,16 @@ a consistent error envelope). It reaches storage only through the
 `LinkRepository` abstraction, and the telemetry simulator is a NestJS-managed
 provider with Nest-owned startup/shutdown. See [`rest-api.md`](rest-api.md).
 
-## What is intentionally absent (M4+)
+## Live stream (M4)
 
-EventBus, SSE and reconnect, Angular UI and charts, MongoDB, Docker/Kubernetes.
-See the README milestone table.
+A single SSE endpoint `GET /api/stream` streams `link.telemetry`, `link.status`,
+and `fleet.summary` events. A framework-free `TelemetrySink` **domain port** lets
+the simulator hand each completed tick batch to a `TelemetryStreamService`
+(`libs/api-feature`), which publishes to a hot `FleetEventBus` (RxJS `Subject`)
+consumed by an SSE `StreamController`. The domain gains only the port — no SSE,
+RxJS, or NestJS concept. See [`sse.md`](sse.md).
+
+## What is intentionally absent (M5+)
+
+Angular UI and charts, `EventSource` client consumption, client-side render
+coalescing, MongoDB, Docker/Kubernetes. See the README milestone table.

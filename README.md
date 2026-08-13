@@ -5,12 +5,12 @@ telemetry, status derivation, and link management. Built as an Nx workspace with
 strict, enforced architectural boundaries between a framework-independent domain
 core, data-access layers, feature layers, and the two applications (`api`, `console`).
 
-> **Milestone:** M3 — REST API
+> **Milestone:** M4 — Live stream over SSE (backend)
 > **Status:** Implementation complete / pending review
 >
-> The domain, in-memory persistence, the 1 Hz telemetry simulator, and a real
-> NestJS REST API are implemented. There is still no SSE or UI — those arrive in
-> later milestones.
+> The domain, in-memory persistence, the 1 Hz telemetry simulator, a real NestJS
+> REST API, and a live SSE stream (`GET /api/stream`) are implemented. The Angular
+> client that consumes the stream arrives in later milestones (M5+).
 >
 > **AI usage:** parts of this codebase were implemented with AI assistance
 > (Claude Code) under human direction and review; all commits are authored by the
@@ -83,6 +83,17 @@ lifecycle (simulator timer stopped, app closed) — no abrupt `process.exit`.
 | `DELETE /links/:id` | Delete (204). |
 | `GET /links/:id/telemetry?windowMs=` | Telemetry window from the ring buffer (default 5 min). |
 | `GET /fleet/summary` | Domain `FleetSummary` (counts, avg throughput, worst link). |
+
+### Live stream (M4)
+
+| Method & path | Purpose |
+| ------------- | ------- |
+| `GET /api/stream` | SSE (`text/event-stream`). Events: `link.telemetry` (per sample), `link.status` (on transition, `{linkId,status,previous}`), `fleet.summary` (once per tick). |
+
+Live-only reconnect (native `EventSource`; no server-side replay) — historical
+gaps are recovered via `GET /links/:id/telemetry`. Routing note: `/api/stream` is
+served literally without adding a global `/api` prefix, so the M3 routes above
+stay unprefixed. Full design: [`docs/architecture/sse.md`](docs/architecture/sse.md).
 
 Validation is at the HTTP boundary (`class-validator` DTOs + a global
 `ValidationPipe`); domain models carry no framework decorators. Status codes:
@@ -168,8 +179,8 @@ other; both may depend on `scope:shared` (the domain).
 | --------- | ----------- | ------ |
 | **M1** | Domain + in-memory store | ✅ complete |
 | **M2** | Telemetry simulator (1 Hz) | ✅ complete |
-| **M3** | REST API (NestJS controllers, DTOs, validation, error envelope) | ✅ implementation complete / pending review |
-| M4 | SSE stream + client | ⏳ not started |
+| **M3** | REST API (NestJS controllers, DTOs, validation, error envelope) | ✅ complete |
+| **M4** | Live stream over SSE (backend `GET /api/stream`) | ✅ implementation complete / pending review |
 | M5 | Fleet view UI | ⏳ not started |
 | M6 | Link detail + edit UI | ⏳ not started |
 | M7 | Concurrency / error UX | ⏳ not started |
@@ -224,8 +235,23 @@ See [`docs/architecture/telemetry.md`](docs/architecture/telemetry.md).
 - Real NestJS integration tests (`@nestjs/testing` + supertest).
 - REST architecture doc.
 
+### Completed in M4 (backend SSE)
+
+- `TelemetrySink` — a framework-free **domain port** so the simulator hands off
+  each completed tick batch without any RxJS/NestJS coupling.
+- `FleetEvent` / `FleetEventBus` (RxJS `Subject`) / `TelemetryStreamService` /
+  `StreamController` in `libs/api-feature`: the app/transport streaming layer.
+- `GET /api/stream` (`text/event-stream`) emitting `link.telemetry` (per sample),
+  `link.status` (on transition), `fleet.summary` (once per tick).
+- Independent per-connection subscriptions with framework-managed disconnect
+  cleanup; serialized batch processing (deterministic ordering, failure-tolerant);
+  live-only reconnect (no replay); delete-while-streaming handled; graceful
+  stream completion on shutdown.
+- Unit + real end-to-end SSE integration tests (real Nest wiring, real socket).
+- SSE architecture doc ([`docs/architecture/sse.md`](docs/architecture/sse.md)).
+
 ### Not yet implemented
 
-- M4 SSE stream/client, EventBus, and reconnect logic
 - M5 fleet UI · M6 detail/edit UI · M7 concurrency & error UX
-- Angular console app, MongoDB, Docker/K8s, and all other M4+ concerns
+- Angular console app + `EventSource` consumption / client-side render coalescing
+- MongoDB, Docker/K8s, and all other M5+ concerns
