@@ -39,7 +39,7 @@ const validCreate = {
   name: 'Test Uplink',
   siteA: 'Alpha',
   siteB: 'Beta',
-  band: '6GHz',
+  band: '5.8GHz',
   mode: 'PtP',
   channelWidthMhz: 80,
   capacityMbps: 500,
@@ -159,6 +159,41 @@ describe('REST API (NestJS integration)', () => {
         .expect(409);
       expect(res.body.error.code).toBe('DUPLICATE_LINK_NAME');
     });
+
+    // --- assignment domain-model constraints (band/mode/width/capacity) ---
+    it('rejects capacityMbps below the assignment minimum (10)', async () => {
+      await http().post('/links').send({ ...validCreate, capacityMbps: 5 }).expect(400);
+    });
+
+    it('rejects capacityMbps above the assignment maximum (1000)', async () => {
+      await http().post('/links').send({ ...validCreate, capacityMbps: 2000 }).expect(400);
+    });
+
+    it('accepts mode S2S (assignment domain value)', async () => {
+      const res = await http()
+        .post('/links')
+        .send({ ...validCreate, name: 'S2S Link', mode: 'S2S' })
+        .expect(201);
+      expect(res.body.mode).toBe('S2S');
+    });
+
+    it('rejects channelWidthMhz 160 (not an assignment value)', async () => {
+      await http()
+        .post('/links')
+        .send({ ...validCreate, channelWidthMhz: 160 })
+        .expect(400);
+    });
+
+    it('accepts assignment bands (5.8GHz, 11GHz)', async () => {
+      await http()
+        .post('/links')
+        .send({ ...validCreate, name: 'Band A', band: '5.8GHz' })
+        .expect(201);
+      await http()
+        .post('/links')
+        .send({ ...validCreate, name: 'Band B', band: '11GHz' })
+        .expect(201);
+    });
   });
 
   describe('PATCH /links/:id', () => {
@@ -173,7 +208,7 @@ describe('REST API (NestJS integration)', () => {
     it('returns 409 VERSION_CONFLICT on a stale expectedVersion', async () => {
       const res = await http()
         .patch('/links/link-0001')
-        .send({ expectedVersion: 99, capacityMbps: 1 })
+        .send({ expectedVersion: 99, capacityMbps: 500 })
         .expect(409);
       expect(res.body.error).toMatchObject({
         code: 'VERSION_CONFLICT',
@@ -185,7 +220,7 @@ describe('REST API (NestJS integration)', () => {
     it('returns 400 when expectedVersion is missing', async () => {
       const res = await http()
         .patch('/links/link-0001')
-        .send({ capacityMbps: 1 })
+        .send({ capacityMbps: 500 })
         .expect(400);
       expect(res.body.error.code).toBe('VALIDATION_FAILED');
     });

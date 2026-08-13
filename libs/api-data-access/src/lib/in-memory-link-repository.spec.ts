@@ -16,7 +16,7 @@ const newLinkInput: CreateLinkInput = {
   name: 'New Link',
   siteA: 'A',
   siteB: 'B',
-  band: '6GHz',
+  band: '5.8GHz',
   mode: 'PtP',
   channelWidthMhz: 80,
   capacityMbps: 500,
