@@ -29,10 +29,20 @@
         "options": {
           "jestConfig": "libs/console-data-access/jest.config.cts"
         }
+      },
+      "typecheck": {
+        "executor": "nx:run-commands",
+        "options": {
+          "command": "tsc --noEmit -p libs/console-data-access/tsconfig.lib.json"
+        }
       }
     }
   },
   "dependencies": {
+    "@angular/common": "^22.1.1",
+    "@angular/core": "^22.1.1",
+    "@linkops/domain": "*",
+    "rxjs": "^7.8.2",
     "tslib": "^2.3.0"
   }
 }
