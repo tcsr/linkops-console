@@ -65,6 +65,11 @@ export interface TelemetrySimulatorOptions {
   readonly random?: () => number;
   /** Tick period in ms. Default 1000. */
   readonly intervalMs?: number;
+  /**
+   * Called when a scheduled tick throws/rejects, so the failure is contained
+   * (no unhandled rejection) and later ticks continue. Default logs to stderr.
+   */
+  readonly onError?: (error: unknown) => void;
 }
 
 /** Per-link simulation state. Bounded to the current fleet; no sample history. */
@@ -104,8 +109,11 @@ export class TelemetrySimulatorService {
   private readonly clock: () => number;
   private readonly random: () => number;
   private readonly intervalMs: number;
+  private readonly onError: (error: unknown) => void;
   private readonly state = new Map<LinkId, LinkSimState>();
   private handle: ReturnType<typeof setInterval> | undefined;
+  /** True while a tick is executing — guards against overlapping ticks. */
+  private inFlight = false;
 
   constructor(
     private readonly repository: LinkRepository,
@@ -114,6 +122,11 @@ export class TelemetrySimulatorService {
     this.clock = options.clock ?? (() => Date.now());
     this.random = options.random ?? (() => Math.random());
     this.intervalMs = options.intervalMs ?? SIMULATOR_DEFAULTS.intervalMs;
+    this.onError =
+      options.onError ??
+      ((error) => {
+        console.error('[telemetry-simulator] tick failed', error);
+      });
   }
 
   /** True while the single global interval is active. */
@@ -126,13 +139,20 @@ export class TelemetrySimulatorService {
     return this.state.size;
   }
 
+  /** True while a scheduled tick is currently executing. */
+  get busy(): boolean {
+    return this.inFlight;
+  }
+
   /** Start the single fleet timer. Idempotent: never creates a second interval. */
   start(): void {
     if (this.handle !== undefined) {
       return;
     }
     this.handle = setInterval(() => {
-      void this.tick();
+      // Fire-and-forget, but errors are contained inside runTick (no unhandled
+      // rejection) and overlapping ticks are skipped.
+      void this.runTick();
     }, this.intervalMs);
   }
 
@@ -155,8 +175,36 @@ export class TelemetrySimulatorService {
   }
 
   /**
+   * Scheduler-facing tick used by the interval (and callable by tests).
+   *
+   * Guarantees:
+   *  - **No overlap:** if a tick is already running, this call is skipped, so at
+   *    most one tick executes at any time (important once the repository can be
+   *    asynchronous/durable).
+   *  - **Error containment:** a throwing/rejecting `tick()` is caught and routed
+   *    to `onError`; it never becomes an unhandled rejection and never blocks
+   *    later ticks. The in-flight flag is always cleared.
+   */
+  async runTick(): Promise<void> {
+    if (this.inFlight) {
+      return;
+    }
+    this.inFlight = true;
+    try {
+      await this.tick();
+    } catch (error) {
+      this.onError(error);
+    } finally {
+      this.inFlight = false;
+    }
+  }
+
+  /**
    * Execute one fleet tick: generate exactly one sample per current link and
    * append it to the repository. All samples in a tick share one timestamp.
+   *
+   * This is the raw pass (may throw). Scheduling uses {@link runTick}, which
+   * adds overlap protection and error containment.
    */
   async tick(): Promise<void> {
     const links = await this.repository.list({});
