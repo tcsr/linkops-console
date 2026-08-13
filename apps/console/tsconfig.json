@@ -7,6 +7,12 @@
     "lib": ["es2022", "dom"],
     "types": [],
     "customConditions": ["@org/source"],
+    "paths": {
+      "@linkops/domain": ["../../libs/domain/src/index.ts"],
+      "@linkops/console-data-access": ["../../libs/console-data-access/src/index.ts"],
+      "@linkops/console-ui": ["../../libs/console-ui/src/index.ts"],
+      "@linkops/console-feature": ["../../libs/console-feature/src/index.ts"]
+    },
     "importHelpers": true,
     "isolatedModules": true,
     "skipLibCheck": true,
