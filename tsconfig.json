@@ -1,0 +1,32 @@
+{
+  "extends": "./tsconfig.base.json",
+  "compileOnSave": false,
+  "files": [],
+  "references": [
+    {
+      "path": "./libs/domain"
+    },
+    {
+      "path": "./libs/api-data-access"
+    },
+    {
+      "path": "./libs/api-feature"
+    },
+    {
+      "path": "./libs/console-data-access"
+    },
+    {
+      "path": "./libs/console-feature"
+    },
+    {
+      "path": "./libs/console-ui"
+    },
+    {
+      "path": "./apps/api"
+    },
+    {
+      "path": "./apps/console"
+    }
+  ],
+  "compilerOptions": {}
+}
