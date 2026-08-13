@@ -14,6 +14,7 @@ export type {
   UpdateLinkInput,
 } from './lib/link.js';
 export type { TelemetrySample } from './lib/telemetry-sample.js';
+export type { TelemetrySink } from './lib/telemetry-sink.js';
 export type { FleetSummary } from './lib/fleet-summary.js';
 
 export {
