@@ -45,6 +45,7 @@ classDiagram
   class TelemetrySample {
     +LinkId linkId
     +string ts
+    +number rssiDbm
     +number snrDb
     +number throughputMbps
   }
@@ -126,8 +127,14 @@ sequenceDiagram
   end
 ```
 
-## What is intentionally absent in M1
+## Telemetry simulation (M2)
 
-Telemetry simulator, 1 Hz timer, EventBus, REST/DTOs/validation, SSE and
-reconnect, Angular UI and charts, MongoDB, Docker/Kubernetes. See the README
-milestone table.
+The 1 Hz `TelemetrySimulatorService` (in `libs/api-data-access`) fills the ring
+buffers so derived status becomes meaningful. It generates one sample per link
+per tick, drifts values plausibly, and occasionally degrades a link — without
+ever writing status. See [`telemetry.md`](telemetry.md) for the full design.
+
+## What is intentionally absent (M3+)
+
+EventBus, REST/DTOs/validation, SSE and reconnect, Angular UI and charts,
+MongoDB, Docker/Kubernetes. See the README milestone table.

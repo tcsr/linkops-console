@@ -5,11 +5,16 @@ telemetry, status derivation, and link management. Built as an Nx workspace with
 strict, enforced architectural boundaries between a framework-independent domain
 core, data-access layers, feature layers, and the two applications (`api`, `console`).
 
-> **Milestone:** M1 — Domain + In-Memory Store
+> **Milestone:** M2 — Telemetry Simulator
 > **Status:** Implementation complete / pending review
 >
-> Only the domain and in-memory persistence layers are implemented. There is no
-> HTTP server, telemetry simulator, or UI yet — those arrive in later milestones.
+> The domain, in-memory persistence, and the 1 Hz telemetry simulator are
+> implemented. There is still no HTTP server, SSE, or UI — those arrive in later
+> milestones.
+>
+> **AI usage:** parts of this codebase were implemented with AI assistance
+> (Claude Code) under human direction and review; all commits are authored by the
+> repository owner.
 
 ---
 
@@ -52,7 +57,8 @@ npx nx run-many -t build
 Convenience npm scripts mirror these: `npm test`, `npm run typecheck`,
 `npm run lint`, `npm run build`.
 
-Run the API composition shell (M1: seeds the fleet and logs a line — no HTTP yet):
+Run the API composition shell (M2: seeds the fleet and starts the 1 Hz
+telemetry simulator — no HTTP yet):
 
 ```bash
 npx nx serve @linkops/api
@@ -61,7 +67,7 @@ npx nx serve @linkops/api
 Expected output:
 
 ```
-[linkops-api] M1 shell ready — seeded 10 links (no HTTP server yet).
+[linkops-api] M2 shell ready — seeded 10 links; telemetry simulator running at 1 Hz (no HTTP server yet).
 ```
 
 > **Nx sync:** this workspace uses TypeScript project references. After changing
@@ -133,14 +139,32 @@ other; both may depend on `scope:shared` (the domain).
 
 | Milestone | Description | Status |
 | --------- | ----------- | ------ |
-| **M1** | Domain + in-memory store | ✅ implementation complete / pending review |
-| M2 | Telemetry simulator + 1 Hz timer + EventBus | ⬜ not started |
-| M3 | REST API (controllers, DTOs, validation, error mapping) | ⬜ not started |
-| M4 | SSE stream + client | ⬜ not started |
-| M5 | Fleet view UI | ⬜ not started |
-| M6 | Link detail + edit UI | ⬜ not started |
-| M7 | Concurrency / error UX | ⬜ not started |
-| M8 | Tests beyond M1 scope | ⬜ not started |
+| **M1** | Domain + in-memory store | ✅ complete |
+| **M2** | Telemetry simulator (1 Hz) | ✅ implementation complete / pending review |
+| M3 | REST API (controllers, DTOs, validation, error mapping) | ⏳ not started |
+| M4 | SSE stream + client | ⏳ not started |
+| M5 | Fleet view UI | ⏳ not started |
+| M6 | Link detail + edit UI | ⏳ not started |
+| M7 | Concurrency / error UX | ⏳ not started |
+| M8 | Tests beyond current scope | ⏳ not started |
+
+### Telemetry simulator (M2)
+
+- Runs at **1 Hz** — one global `setInterval` for the whole fleet.
+- Generates **one `TelemetrySample` per link per tick** (`linkId`, `ts`,
+  `rssiDbm`, `snrDb`, `throughputMbps`), appended to each link's **300-sample
+  ring buffer** (bounded ≈ 5 min of history; no unbounded growth).
+- **Plausible drift:** values evolve by bounded random-walk toward a target and
+  stay within realistic ranges; throughput stays within link capacity.
+- **Occasional degradation:** episodes push a link's telemetry into the degraded
+  band for a bounded number of ticks, then recover (with cooldown) — never all
+  links at once, never permanently.
+- **Status stays derived** via `deriveLinkStatus(link, latestSample, now)`; the
+  simulator never writes a status field.
+- Simulation state is **O(fleet)** (scalars per link); telemetry lives only in
+  the repository ring buffers.
+
+See [`docs/architecture/telemetry.md`](docs/architecture/telemetry.md).
 
 ### Completed in M1
 
@@ -154,10 +178,17 @@ other; both may depend on `scope:shared` (the domain).
 - Domain, repository, and ring-buffer unit tests (deterministic, injected time).
 - This README and initial architecture docs.
 
+### Completed in M2
+
+- 1 Hz `TelemetrySimulatorService` in `libs/api-data-access` (one global timer).
+- `TelemetrySample` extended with `rssiDbm` (assignment sample contract).
+- Plausible bounded drift, occasional degradation + recovery — status stays derived.
+- Deterministic simulator tests (injected clock + RNG; no real-time sleeps).
+- Telemetry architecture doc; simulator wired into the API composition shell.
+
 ### Not yet implemented
 
-- M2 telemetry simulator / timer / EventBus
 - M3 REST controllers, DTOs, validation, HTTP error mapping
-- M4 SSE and reconnect logic
+- M4 SSE stream/client, EventBus, and reconnect logic
 - M5 fleet UI · M6 detail/edit UI · M7 concurrency & error UX
-- Angular console app, MongoDB, Docker/K8s, and all other M2+ concerns
+- Angular console app, MongoDB, Docker/K8s, and all other M3+ concerns
