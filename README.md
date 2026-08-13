@@ -5,12 +5,14 @@ telemetry, status derivation, and link management. Built as an Nx workspace with
 strict, enforced architectural boundaries between a framework-independent domain
 core, data-access layers, feature layers, and the two applications (`api`, `console`).
 
-> **Milestone:** M4 — Live stream over SSE (backend)
+> **Milestone:** M5 — Angular console (fleet view)
 > **Status:** Implementation complete / pending review
 >
 > The domain, in-memory persistence, the 1 Hz telemetry simulator, a real NestJS
-> REST API, and a live SSE stream (`GET /api/stream`) are implemented. The Angular
-> client that consumes the stream arrives in later milestones (M5+).
+> REST API, a live SSE stream (`GET /api/stream`), and an **Angular 22 fleet
+> view** (zoneless, signal-first; live status + throughput, KPI header,
+> URL-backed filter/sort) are implemented. Link detail/edit (M6) and
+> concurrency/error UX (M7) are later milestones.
 >
 > **AI usage:** parts of this codebase were implemented with AI assistance
 > (Claude Code) under human direction and review; all commits are authored by the
@@ -57,20 +59,32 @@ npx nx run-many -t build
 Convenience npm scripts mirror these: `npm test`, `npm run typecheck`,
 `npm run lint`, `npm run build`.
 
-Run the API (NestJS REST server; seeds the fleet and starts the 1 Hz simulator):
+### Run it (API + Angular client together)
+
+One documented command starts both the NestJS API and the Angular console:
 
 ```bash
-npx nx serve @linkops/api
+npm run dev
 ```
 
-Expected output:
+- **API:** http://localhost:3000 — `[linkops-api] … listening on :3000`.
+- **Console:** http://localhost:4200 — the Angular fleet view (the dev server
+  proxies `/links`, `/fleet`, and `/api` to the API, per
+  `apps/console/proxy.conf.json`).
 
-```
-[linkops-api] M3 REST API listening on :3000
-```
+A **working first load** at http://localhost:4200: the **KPI header** shows
+**10** seeded links (up/degraded/down counts + avg Mbps), the **list** shows all
+10 links with a live status badge and current throughput, the connection
+indicator reads **open**, and **throughput values update ~once per second** as
+the simulator streams telemetry. Filtering/sorting (search, status, band, sort,
+order) is reflected in the URL, so a filtered view is shareable and survives
+reload.
 
-The port is configurable via `PORT`. SIGINT/SIGTERM shut down through the Nest
-lifecycle (simulator timer stopped, app closed) — no abrupt `process.exit`.
+Run each separately with `npm run dev:api` and `npm run dev:console`.
+
+The API port is configurable via `PORT`. SIGINT/SIGTERM shut the API down
+through the Nest lifecycle (simulator timer stopped, app closed) — no abrupt
+`process.exit`.
 
 ### REST endpoints (M3)
 
@@ -122,11 +136,11 @@ apps/
 
 libs/
   domain/               Framework-independent domain core (scope:shared, type:domain)
-  api-data-access/      In-memory repository + ring buffer (scope:api,   type:data-access)
-  api-feature/          (shell) API feature layer          (scope:api,   type:feature)
-  console-data-access/  (shell) Console data access         (scope:console, type:data-access)
-  console-feature/      (shell) Console feature layer        (scope:console, type:feature)
-  console-ui/           (shell) Presentational components     (scope:console, type:ui)
+  api-data-access/      In-memory repo + ring buffer + simulator (scope:api, type:data-access)
+  api-feature/          NestJS REST + SSE stream layer      (scope:api,     type:feature)
+  console-data-access/  Signal store: REST + SSE + coalescing (scope:console, type:data-access)
+  console-feature/      Fleet view container (routed)        (scope:console, type:feature)
+  console-ui/           Presentational components            (scope:console, type:ui)
 
 docs/architecture/      System overview + dependency graph
 ```
@@ -180,8 +194,8 @@ other; both may depend on `scope:shared` (the domain).
 | **M1** | Domain + in-memory store | ✅ complete |
 | **M2** | Telemetry simulator (1 Hz) | ✅ complete |
 | **M3** | REST API (NestJS controllers, DTOs, validation, error envelope) | ✅ complete |
-| **M4** | Live stream over SSE (backend `GET /api/stream`) | ✅ implementation complete / pending review |
-| M5 | Fleet view UI | ⏳ not started |
+| **M4** | Live stream over SSE (backend `GET /api/stream`) | ✅ complete |
+| **M5** | Angular fleet view (live status/throughput, KPI header, URL filter/sort) | ✅ implementation complete / pending review |
 | M6 | Link detail + edit UI | ⏳ not started |
 | M7 | Concurrency / error UX | ⏳ not started |
 | M8 | Tests beyond current scope | ⏳ not started |
@@ -250,8 +264,24 @@ See [`docs/architecture/telemetry.md`](docs/architecture/telemetry.md).
 - Unit + real end-to-end SSE integration tests (real Nest wiring, real socket).
 - SSE architecture doc ([`docs/architecture/sse.md`](docs/architecture/sse.md)).
 
+### Completed in M5 (Angular fleet view)
+
+- Angular 22 client — **zoneless** (`provideZonelessChangeDetection()`, no
+  zone.js; bonus B3), **standalone**, **signal-first**.
+- `console-data-access`: `FleetStore` signal store — REST snapshot (`/links` +
+  `/fleet/summary`) + `EventSource` on `/api/stream`, with **render coalescing**
+  (SSE events buffered and applied once per animation frame → no 1 Hz
+  change-detection storm), live-only reconnect, and `DestroyRef` teardown.
+- `console-ui`: presentational `StatusBadge`, `KpiHeader`, `FleetTable`
+  (`@for … track id`), on a domain-typed view-model.
+- `console-feature`: `FleetView` — KPI header + sortable/filterable live list;
+  **filter/sort state in the URL** (shareable, survives reload); loading / error
+  / empty / ready states.
+- One-command dev startup (`npm run dev`) with an API proxy.
+- Tests: signal store + state logic + component tests (zoneless
+  jest-preset-angular). See [`docs/architecture/console.md`](docs/architecture/console.md).
+
 ### Not yet implemented
 
-- M5 fleet UI · M6 detail/edit UI · M7 concurrency & error UX
-- Angular console app + `EventSource` consumption / client-side render coalescing
-- MongoDB, Docker/K8s, and all other M5+ concerns
+- M6 link detail + edit UI · M7 concurrency & 409 / error UX
+- MongoDB, Docker/K8s, and all other later concerns
