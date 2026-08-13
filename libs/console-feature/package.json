@@ -3,36 +3,33 @@
   "version": "0.0.1",
   "private": true,
   "type": "module",
-  "main": "./dist/index.js",
-  "module": "./dist/index.js",
-  "types": "./dist/index.d.ts",
   "exports": {
     "./package.json": "./package.json",
     ".": {
       "@org/source": "./src/index.ts",
-      "types": "./dist/index.d.ts",
-      "import": "./dist/index.js",
-      "default": "./dist/index.js"
+      "default": "./src/index.ts"
     }
   },
   "nx": {
-    "tags": [
-      "scope:console",
-      "type:feature"
-    ],
+    "tags": ["scope:console", "type:feature"],
     "targets": {
       "test": {
         "executor": "@nx/jest:jest",
-        "outputs": [
-          "{projectRoot}/test-output/jest/coverage"
-        ],
-        "options": {
-          "jestConfig": "libs/console-feature/jest.config.cts"
-        }
+        "outputs": ["{projectRoot}/test-output/jest/coverage"],
+        "options": { "jestConfig": "libs/console-feature/jest.config.cts" }
+      },
+      "typecheck": {
+        "executor": "nx:run-commands",
+        "options": { "command": "tsc --noEmit -p libs/console-feature/tsconfig.lib.json" }
       }
     }
   },
   "dependencies": {
+    "@angular/core": "^22.1.1",
+    "@angular/router": "^22.1.1",
+    "@linkops/console-data-access": "*",
+    "@linkops/console-ui": "*",
+    "@linkops/domain": "*",
     "tslib": "^2.3.0"
   }
 }
