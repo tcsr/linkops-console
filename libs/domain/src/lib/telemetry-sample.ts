@@ -11,6 +11,8 @@ export interface TelemetrySample {
   readonly linkId: LinkId;
   /** ISO-8601 timestamp when the sample was observed. */
   readonly ts: string;
+  /** Received signal strength indicator, in dBm (negative values). */
+  readonly rssiDbm: number;
   /** Signal-to-noise ratio in decibels. */
   readonly snrDb: number;
   /** Instantaneous user throughput in megabits per second. */
