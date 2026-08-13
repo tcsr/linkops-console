@@ -5,6 +5,9 @@ dist
 tmp
 out-tsc
 
+# Angular build cache
+.angular
+
 # dependencies
 node_modules
 

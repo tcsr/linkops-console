@@ -1,11 +1,23 @@
 {
-  "extends": "../../tsconfig.base.json",
+  "extends": "./tsconfig.json",
   "compilerOptions": {
-    "outDir": "dist",
-    "types": ["node"],
-    "rootDir": "src",
-    "tsBuildInfoFile": "dist/tsconfig.app.tsbuildinfo"
+    "outDir": "dist"
   },
+  "files": ["src/main.ts"],
   "include": ["src/**/*.ts"],
-  "exclude": ["eslint.config.js", "eslint.config.cjs", "eslint.config.mjs"]
+  "exclude": ["src/**/*.spec.ts", "src/test-setup.ts"],
+  "references": [
+    {
+      "path": "../../libs/domain/tsconfig.lib.json"
+    },
+    {
+      "path": "../../libs/console-ui/tsconfig.lib.json"
+    },
+    {
+      "path": "../../libs/console-feature/tsconfig.lib.json"
+    },
+    {
+      "path": "../../libs/console-data-access/tsconfig.lib.json"
+    }
+  ]
 }

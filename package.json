@@ -6,12 +6,18 @@
     "lint": "nx run-many -t lint",
     "test": "nx run-many -t test",
     "typecheck": "nx run-many -t typecheck",
-    "build": "nx run-many -t build"
+    "build": "nx run-many -t build",
+    "dev": "nx run-many -t serve -p @linkops/api @linkops/console",
+    "dev:api": "nx serve @linkops/api",
+    "dev:console": "nx serve @linkops/console"
   },
   "private": true,
   "devDependencies": {
+    "@angular/build": "^22.1.3",
+    "@angular/compiler-cli": "^22.1.1",
     "@eslint/js": "^9.8.0",
     "@nestjs/testing": "^11.1.29",
+    "@nx/angular": "^23.1.1",
     "@nx/esbuild": "23.1.1",
     "@nx/eslint": "^23.1.1",
     "@nx/eslint-plugin": "^23.1.1",
@@ -31,8 +37,10 @@
     "eslint-config-prettier": "^10.0.0",
     "jest": "~30.3.0",
     "jest-environment-node": "~30.3.0",
+    "jest-preset-angular": "^17.0.0",
     "jest-util": "~30.3.0",
     "jsonc-eslint-parser": "^2.1.0",
+    "ng-packagr": "^22.1.1",
     "nx": "23.1.1",
     "prettier": "^3.8.1",
     "supertest": "^7.2.2",
@@ -40,13 +48,20 @@
     "ts-node": "10.9.1",
     "tslib": "^2.3.0",
     "typescript": "~6.0.3",
-    "typescript-eslint": "^8.58.0"
+    "typescript-eslint": "^8.58.0",
+    "zone.js": "^0.16.0"
   },
   "workspaces": [
     "libs/*",
     "apps/*"
   ],
   "dependencies": {
+    "@angular/common": "^22.1.1",
+    "@angular/compiler": "^22.1.1",
+    "@angular/core": "^22.1.1",
+    "@angular/forms": "^22.1.1",
+    "@angular/platform-browser": "^22.1.1",
+    "@angular/router": "^22.1.1",
     "@nestjs/common": "^11.1.29",
     "@nestjs/core": "^11.1.29",
     "@nestjs/platform-express": "^11.1.29",
