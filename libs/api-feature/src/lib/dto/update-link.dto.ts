@@ -9,6 +9,7 @@ import {
   Max,
   Min,
 } from 'class-validator';
+// IsInt is retained for expectedVersion (an integer); numeric link fields use IsNumber.
 import { LINK_NAME_CONSTRAINTS } from '@linkops/domain';
 import { BANDS, CHANNEL_WIDTHS, MODES } from './create-link.dto.js';
 
@@ -54,12 +55,13 @@ export class UpdateLinkDto {
   @IsOptional()
   @Type(() => Number)
   @IsNumber()
-  @Min(1)
+  @Min(10)
+  @Max(1000)
   capacityMbps?: number;
 
   @IsOptional()
   @Type(() => Number)
-  @IsInt()
+  @IsNumber()
   @Min(-10)
   @Max(30)
   txPowerDbm?: number;
