@@ -12,6 +12,8 @@ import { FleetService } from './fleet.service.js';
 import { LinksController } from './links.controller.js';
 import { FleetController } from './fleet.controller.js';
 import { ApiExceptionFilter } from './api-exception.filter.js';
+import { FleetEventBus } from './fleet-event-bus.js';
+import { TelemetryStreamService } from './telemetry-stream.service.js';
 
 /**
  * Root feature module for the REST API.
@@ -31,14 +33,22 @@ import { ApiExceptionFilter } from './api-exception.filter.js';
       useFactory: (): LinkRepository =>
         new InMemoryLinkRepository({ seed: createSeedLinks() }),
     },
-    {
-      provide: TelemetrySimulatorService,
-      useFactory: (repository: LinkRepository): TelemetrySimulatorService =>
-        new TelemetrySimulatorService(repository),
-      inject: [LINK_REPOSITORY],
-    },
+    FleetEventBus,
     LinksService,
     FleetService,
+    TelemetryStreamService,
+    {
+      // Wire the stream service in as the simulator's TelemetrySink (M4). The
+      // simulator still only knows the domain port; Nest owns the composition,
+      // so there is no simulator→feature/RxJS coupling.
+      provide: TelemetrySimulatorService,
+      useFactory: (
+        repository: LinkRepository,
+        sink: TelemetryStreamService,
+      ): TelemetrySimulatorService =>
+        new TelemetrySimulatorService(repository, { sink }),
+      inject: [LINK_REPOSITORY, TelemetryStreamService],
+    },
     {
       provide: APP_PIPE,
       useFactory: (): ValidationPipe =>
