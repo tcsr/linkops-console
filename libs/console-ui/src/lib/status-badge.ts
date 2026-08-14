@@ -18,24 +18,32 @@ import type { LinkStatus } from '@linkops/domain';
       display: inline-flex;
       align-items: center;
       gap: 0.4rem;
-      padding: 0.2rem 0.6rem 0.2rem 0.5rem;
+      padding: 0.25rem 0.65rem 0.25rem 0.55rem;
       border-radius: 999px;
-      font-size: 0.7rem;
-      font-weight: 650;
+      font-size: 0.68rem;
+      font-weight: 700;
       text-transform: uppercase;
-      letter-spacing: 0.05em;
+      letter-spacing: 0.06em;
       border: 1px solid transparent;
+      transition: all 0.2s ease;
     }
     .dot {
       width: 0.45rem;
       height: 0.45rem;
       border-radius: 50%;
       background: currentColor;
-      box-shadow: 0 0 0 3px color-mix(in srgb, currentColor 22%, transparent);
+      box-shadow: 0 0 0 3px color-mix(in srgb, currentColor 20%, transparent);
     }
-    .up { color: var(--up, #34d399); background: var(--up-dim, rgba(52, 211, 153, 0.13)); border-color: color-mix(in srgb, var(--up, #34d399) 35%, transparent); }
-    .degraded { color: var(--degraded, #fbbf24); background: var(--degraded-dim, rgba(251, 191, 36, 0.13)); border-color: color-mix(in srgb, var(--degraded, #fbbf24) 35%, transparent); }
-    .down { color: var(--down, #f87171); background: var(--down-dim, rgba(248, 113, 113, 0.13)); border-color: color-mix(in srgb, var(--down, #f87171) 35%, transparent); }
+    .up { color: var(--up); background: var(--up-dim); border-color: color-mix(in srgb, var(--up) 25%, transparent); }
+    .degraded { color: var(--degraded); background: var(--degraded-dim); border-color: color-mix(in srgb, var(--degraded) 25%, transparent); }
+    .down { color: var(--down); background: var(--down-dim); border-color: color-mix(in srgb, var(--down) 25%, transparent); }
+    
+    .badge:hover {
+      transform: translateY(-0.5px);
+    }
+    .badge.up:hover { box-shadow: 0 0 8px color-mix(in srgb, var(--up) 30%, transparent); }
+    .badge.degraded:hover { box-shadow: 0 0 8px color-mix(in srgb, var(--degraded) 30%, transparent); }
+    .badge.down:hover { box-shadow: 0 0 8px color-mix(in srgb, var(--down) 30%, transparent); }
   `,
 })
 export class StatusBadge {

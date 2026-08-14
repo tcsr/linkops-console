@@ -55,45 +55,82 @@ import type { FleetRow } from './fleet-row';
   `,
   styles: `
     .card {
-      border: 1px solid var(--border, #212b3a);
-      border-radius: var(--radius, 16px);
-      background: var(--panel, #131a25);
+      border: 1px solid color-mix(in srgb, var(--border) 60%, transparent);
+      border-radius: var(--radius);
+      background: var(--panel);
       box-shadow: var(--shadow);
-      overflow: hidden;
+      overflow: visible;
+      transition: border-color 0.3s ease, box-shadow 0.3s ease;
     }
-    table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
+    table { width: 100%; border-collapse: separate; border-spacing: 0; font-size: 0.92rem; }
     thead th {
-      position: sticky; top: 0;
-      background: color-mix(in srgb, var(--panel-2, #18212f) 92%, transparent);
-      backdrop-filter: blur(6px);
-      font-size: 0.68rem; font-weight: 650; text-transform: uppercase; letter-spacing: 0.06em;
-      color: var(--muted, #8b98ab);
-      text-align: left; padding: 0.7rem 1rem;
-      border-bottom: 1px solid var(--border, #212b3a);
+      position: sticky; top: 3.75rem;
+      background: var(--panel-2);
+      font-size: 0.72rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em;
+      color: var(--muted);
+      text-align: left; padding: 0.9rem 1.25rem; white-space: nowrap;
+      border-bottom: 1px solid color-mix(in srgb, var(--border) 80%, transparent);
+      z-index: 10;
     }
-    tbody td { padding: 0.7rem 1rem; border-bottom: 1px solid color-mix(in srgb, var(--border, #212b3a) 55%, transparent); }
+    thead th:first-child { border-top-left-radius: var(--radius); }
+    thead th:last-child { border-top-right-radius: var(--radius); }
+    /* keep numeric headers aligned with their columns (out-specifies thead th) */
+    thead th.num { text-align: right; }
+    tbody td { 
+      padding: 0.9rem 1.25rem; 
+      border-bottom: 1px solid color-mix(in srgb, var(--border) 40%, transparent); 
+      transition: box-shadow 0.2s ease;
+    }
     tbody tr:last-child td { border-bottom: none; }
-    tbody tr { transition: background 0.12s ease; }
-    tbody tr:hover { background: color-mix(in srgb, var(--accent, #6ea8fe) 6%, transparent); }
-    .name { font-weight: 600; }
-    .sites { color: var(--muted, #8b98ab); }
-    .arr { color: var(--faint, #586478); }
+    tbody tr:last-child td:first-child { border-bottom-left-radius: var(--radius); }
+    tbody tr:last-child td:last-child { border-bottom-right-radius: var(--radius); }
+    tbody tr { transition: background 0.2s ease; }
+    tbody tr:hover { background: color-mix(in srgb, var(--accent) 4%, var(--panel-2)); }
+    tbody tr:hover td:first-child { box-shadow: inset 4px 0 0 0 var(--accent); }
+    .name { font-weight: 700; color: var(--text); }
+    .sites { color: var(--muted); font-size: 0.88rem; }
+    .arr { color: var(--faint); padding: 0 0.2rem; }
     .band {
-      font-size: 0.75rem; font-weight: 600; color: var(--muted, #8b98ab);
-      padding: 0.12rem 0.45rem; border-radius: 6px;
-      background: color-mix(in srgb, var(--border-strong, #2c3849) 45%, transparent);
+      display: inline-block; min-width: 3.4rem; text-align: center;
+      font-size: 0.72rem; font-weight: 700; color: var(--muted);
+      padding: 0.2rem 0.55rem; border-radius: 99px;
+      background: color-mix(in srgb, var(--border-strong) 25%, transparent);
+      border: 1px solid color-mix(in srgb, var(--border) 60%, transparent);
+      transition: all 0.2s ease;
     }
-    .num { text-align: right; font-variant-numeric: tabular-nums; }
-    .tput .meter { display: flex; align-items: center; gap: 0.55rem; justify-content: flex-end; }
-    .track { width: 72px; height: 5px; border-radius: 999px; background: color-mix(in srgb, var(--border-strong, #2c3849) 60%, transparent); overflow: hidden; }
-    .fill { height: 100%; border-radius: 999px; transition: width 0.5s cubic-bezier(0.4, 0, 0.2, 1); }
-    .fill.up { background: var(--up, #34d399); }
-    .fill.degraded { background: var(--degraded, #fbbf24); }
-    .fill.down { background: var(--down, #f87171); }
-    .mbps { min-width: 3.6rem; font-weight: 600; }
-    .cap { color: var(--muted, #8b98ab); }
-    .dash { color: var(--faint, #586478); }
-    .empty { text-align: center; color: var(--muted, #8b98ab); padding: 2.5rem 1rem; }
+    tr:hover .band {
+      border-color: var(--accent);
+      background: color-mix(in srgb, var(--accent) 8%, transparent);
+      color: var(--text);
+    }
+    td.num { text-align: right; font-variant-numeric: tabular-nums; }
+    /* throughput: fixed-width bar + right-aligned number so the column lines up */
+    .tput .meter { display: inline-flex; align-items: center; gap: 0.8rem; }
+    .track { 
+      width: 68px; height: 6px; border-radius: 999px; 
+      background: color-mix(in srgb, var(--border-strong) 35%, transparent); 
+      overflow: hidden; flex: none; 
+    }
+    .fill { 
+      height: 100%; border-radius: 999px; 
+      transition: width 0.5s cubic-bezier(0.34, 1.56, 0.64, 1); 
+    }
+    .fill.up { 
+      background: linear-gradient(90deg, color-mix(in srgb, var(--up) 80%, white), var(--up)); 
+      box-shadow: 0 0 6px var(--up);
+    }
+    .fill.degraded { 
+      background: linear-gradient(90deg, color-mix(in srgb, var(--degraded) 80%, white), var(--degraded)); 
+      box-shadow: 0 0 6px var(--degraded);
+    }
+    .fill.down { 
+      background: linear-gradient(90deg, color-mix(in srgb, var(--down) 80%, white), var(--down)); 
+      box-shadow: 0 0 6px var(--down);
+    }
+    .mbps { min-width: 4rem; text-align: right; font-weight: 700; color: var(--text); }
+    .cap { color: var(--muted); font-weight: 600; }
+    .dash { color: var(--faint); }
+    .empty { text-align: center; color: var(--muted); padding: 3rem 1.25rem; font-weight: 500; }
   `,
 })
 export class FleetTable {

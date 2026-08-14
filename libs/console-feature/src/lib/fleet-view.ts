@@ -4,6 +4,7 @@ import {
   computed,
   inject,
   input,
+  signal,
 } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
 import { FleetStore } from '@linkops/console-data-access';
@@ -31,6 +32,9 @@ import {
   selector: 'app-fleet-view',
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [KpiHeader, FleetTable],
+  host: {
+    '(document:click)': 'closeDropdowns()'
+  },
   template: `
     <header class="bar">
       <div class="title">
@@ -55,37 +59,61 @@ import {
           aria-label="Search links"
         />
       </label>
-      <label class="field select">
-        <select [value]="filter().status" (change)="set('status', asValue($event))" aria-label="Filter status">
-          <option value="all">All statuses</option>
-          <option value="up">Up</option>
-          <option value="degraded">Degraded</option>
-          <option value="down">Down</option>
-        </select>
-      </label>
-      <label class="field select">
-        <select [value]="filter().band" (change)="set('band', asValue($event))" aria-label="Filter band">
-          <option value="all">All bands</option>
-          <option value="5GHz">5GHz</option>
-          <option value="5.8GHz">5.8GHz</option>
-          <option value="11GHz">11GHz</option>
-          <option value="24GHz">24GHz</option>
-        </select>
-      </label>
-      <label class="field select">
-        <select [value]="filter().sort" (change)="set('sort', asValue($event))" aria-label="Sort by">
-          <option value="name">Sort: Name</option>
-          <option value="status">Sort: Status</option>
-          <option value="throughput">Sort: Throughput</option>
-          <option value="capacity">Sort: Capacity</option>
-        </select>
-      </label>
-      <label class="field select narrow">
-        <select [value]="filter().order" (change)="set('order', asValue($event))" aria-label="Sort order">
-          <option value="asc">Asc</option>
-          <option value="desc">Desc</option>
-        </select>
-      </label>
+
+      <!-- Status dropdown -->
+      <div class="custom-select" [class.open]="activeDropdown() === 'status'">
+        <button type="button" class="field select-btn" (click)="toggleDropdown('status', $event)" aria-label="Filter status">
+          <span>{{ statusLabel() }}</span>
+          <span class="chevron"></span>
+        </button>
+        <div class="options-menu">
+          <button type="button" class="option-item" [class.selected]="filter().status === 'all'" (click)="selectOption('status', 'all')">All statuses</button>
+          <button type="button" class="option-item" [class.selected]="filter().status === 'up'" (click)="selectOption('status', 'up')">Up</button>
+          <button type="button" class="option-item" [class.selected]="filter().status === 'degraded'" (click)="selectOption('status', 'degraded')">Degraded</button>
+          <button type="button" class="option-item" [class.selected]="filter().status === 'down'" (click)="selectOption('status', 'down')">Down</button>
+        </div>
+      </div>
+
+      <!-- Band dropdown -->
+      <div class="custom-select" [class.open]="activeDropdown() === 'band'">
+        <button type="button" class="field select-btn" (click)="toggleDropdown('band', $event)" aria-label="Filter band">
+          <span>{{ bandLabel() }}</span>
+          <span class="chevron"></span>
+        </button>
+        <div class="options-menu">
+          <button type="button" class="option-item" [class.selected]="filter().band === 'all'" (click)="selectOption('band', 'all')">All bands</button>
+          <button type="button" class="option-item" [class.selected]="filter().band === '5GHz'" (click)="selectOption('band', '5GHz')">5GHz</button>
+          <button type="button" class="option-item" [class.selected]="filter().band === '5.8GHz'" (click)="selectOption('band', '5.8GHz')">5.8GHz</button>
+          <button type="button" class="option-item" [class.selected]="filter().band === '11GHz'" (click)="selectOption('band', '11GHz')">11GHz</button>
+          <button type="button" class="option-item" [class.selected]="filter().band === '24GHz'" (click)="selectOption('band', '24GHz')">24GHz</button>
+        </div>
+      </div>
+
+      <!-- Sort dropdown -->
+      <div class="custom-select" [class.open]="activeDropdown() === 'sort'">
+        <button type="button" class="field select-btn" (click)="toggleDropdown('sort', $event)" aria-label="Sort by">
+          <span>{{ sortLabel() }}</span>
+          <span class="chevron"></span>
+        </button>
+        <div class="options-menu">
+          <button type="button" class="option-item" [class.selected]="filter().sort === 'name'" (click)="selectOption('sort', 'name')">Sort: Name</button>
+          <button type="button" class="option-item" [class.selected]="filter().sort === 'status'" (click)="selectOption('sort', 'status')">Sort: Status</button>
+          <button type="button" class="option-item" [class.selected]="filter().sort === 'throughput'" (click)="selectOption('sort', 'throughput')">Sort: Throughput</button>
+          <button type="button" class="option-item" [class.selected]="filter().sort === 'capacity'" (click)="selectOption('sort', 'capacity')">Sort: Capacity</button>
+        </div>
+      </div>
+
+      <!-- Order dropdown -->
+      <div class="custom-select" [class.open]="activeDropdown() === 'order'">
+        <button type="button" class="field select-btn narrow" (click)="toggleDropdown('order', $event)" aria-label="Sort order">
+          <span>{{ orderLabel() }}</span>
+          <span class="chevron"></span>
+        </button>
+        <div class="options-menu">
+          <button type="button" class="option-item" [class.selected]="filter().order === 'asc'" (click)="selectOption('order', 'asc')">Asc</button>
+          <button type="button" class="option-item" [class.selected]="filter().order === 'desc'" (click)="selectOption('order', 'desc')">Desc</button>
+        </div>
+      </div>
     </div>
 
     @if (view() === 'ready') {
@@ -131,90 +159,261 @@ import {
     </footer>
   `,
   styles: `
-    :host { display: block; padding: 1.75rem 1.5rem 2rem; max-width: 76rem; margin: 0 auto; }
-    .bar { display: flex; align-items: flex-start; justify-content: space-between; gap: 1rem; margin-bottom: 1.5rem; }
+    :host { display: block; padding: 1rem 1.5rem 2.5rem; max-width: 76rem; margin: 0 auto; }
+    .bar { display: flex; align-items: center; justify-content: space-between; gap: 1rem; margin-bottom: 1.15rem; }
     h1 {
-      margin: 0; font-size: 1.95rem; font-weight: 760; letter-spacing: -0.03em;
-      background: linear-gradient(120deg, var(--text, #1b2a38), var(--accent, #1399ae));
+      margin: 0; font-size: 1.7rem; font-weight: 800; letter-spacing: -0.03em;
+      background: linear-gradient(135deg, var(--text), color-mix(in srgb, var(--accent) 80%, var(--brand)));
       -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;
     }
-    .sub { margin: 0.15rem 0 0; font-size: 0.85rem; color: var(--muted, #8b98ab); }
+    .sub { margin: 0.15rem 0 0; font-size: 0.82rem; color: var(--muted); }
     .conn {
-      display: inline-flex; align-items: center; gap: 0.45rem;
-      font-size: 0.7rem; font-weight: 650; text-transform: uppercase; letter-spacing: 0.05em;
-      color: var(--muted, #8b98ab);
-      padding: 0.35rem 0.7rem; border-radius: 999px;
-      border: 1px solid var(--border, #212b3a); background: var(--panel, #131a25);
+      display: inline-flex; align-items: center; gap: 0.4rem;
+      font-size: 0.68rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em;
+      color: var(--muted);
+      padding: 0.3rem 0.65rem; border-radius: 99px;
+      border: 1px solid var(--border); background: var(--panel);
+      box-shadow: var(--shadow);
+      transition: all 0.25s ease;
     }
-    .pip { width: 0.5rem; height: 0.5rem; border-radius: 50%; background: var(--faint, #586478); }
-    .conn[data-state='open'] { color: var(--up, #34d399); border-color: color-mix(in srgb, var(--up, #34d399) 35%, transparent); }
-    .conn[data-state='open'] .pip { background: var(--up, #34d399); box-shadow: 0 0 0 0 color-mix(in srgb, var(--up, #34d399) 60%, transparent); animation: ping 1.8s ease-out infinite; }
-    .conn[data-state='reconnecting'] { color: var(--degraded, #fbbf24); border-color: color-mix(in srgb, var(--degraded, #fbbf24) 35%, transparent); }
-    .conn[data-state='reconnecting'] .pip { background: var(--degraded, #fbbf24); }
-    @keyframes ping { 0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--up, #34d399) 55%, transparent); } 70%, 100% { box-shadow: 0 0 0 6px transparent; } }
+    .conn:hover {
+      border-color: var(--border-strong);
+      transform: translateY(-1px);
+    }
+    .pip { width: 0.5rem; height: 0.5rem; border-radius: 50%; background: var(--faint); transition: background 0.3s ease; }
+    .conn[data-state='open'] {
+      color: var(--up);
+      border-color: color-mix(in srgb, var(--up) 30%, transparent);
+      background: color-mix(in srgb, var(--up) 6%, var(--panel));
+      box-shadow: 0 0 15px -3px color-mix(in srgb, var(--up) 15%, transparent), var(--shadow);
+    }
+    .conn[data-state='open'] .pip {
+      background: var(--up);
+      animation: ping 2s cubic-bezier(0, 0, 0.2, 1) infinite;
+    }
+    .conn[data-state='reconnecting'] {
+      color: var(--degraded);
+      border-color: color-mix(in srgb, var(--degraded) 30%, transparent);
+      background: color-mix(in srgb, var(--degraded) 6%, var(--panel));
+      box-shadow: 0 0 15px -3px color-mix(in srgb, var(--degraded) 15%, transparent), var(--shadow);
+    }
+    .conn[data-state='reconnecting'] .pip {
+      background: var(--degraded);
+      animation: ping-degraded 2s cubic-bezier(0, 0, 0.2, 1) infinite;
+    }
+    @keyframes ping {
+      0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--up) 60%, transparent); }
+      70%, 100% { box-shadow: 0 0 0 8px transparent; }
+    }
+    @keyframes ping-degraded {
+      0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--degraded) 60%, transparent); }
+      70%, 100% { box-shadow: 0 0 0 8px transparent; }
+    }
 
-    .filters { display: flex; gap: 0.6rem; flex-wrap: wrap; margin: 1.25rem 0 1.5rem; }
+    .filters { display: flex; gap: 0.6rem; flex-wrap: wrap; margin: 1.15rem 0 1.25rem; }
+
     .field {
       display: flex; align-items: center; gap: 0.5rem;
-      background: var(--panel, #131a25); border: 1px solid var(--border, #212b3a);
-      border-radius: var(--radius-sm, 10px); padding: 0 0.7rem; height: 2.5rem;
-      transition: border-color 0.15s ease, box-shadow 0.15s ease;
+      background: var(--panel); border: 1px solid var(--border);
+      border-radius: var(--radius-sm); padding: 0 0.8rem; height: 2.35rem;
+      transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.01);
     }
-    .field:focus-within { border-color: var(--accent, #6ea8fe); box-shadow: 0 0 0 3px var(--accent-dim, rgba(110, 168, 254, 0.14)); }
-    .field svg { width: 1rem; height: 1rem; fill: var(--muted, #8b98ab); flex: none; }
+    .field:hover {
+      border-color: var(--border-strong);
+      background: var(--panel-2);
+    }
+    .field:focus-within {
+      background: var(--panel);
+      border-color: var(--accent);
+      box-shadow: var(--glow-accent), 0 0 0 1px var(--accent);
+      transform: translateY(-1px);
+    }
+    .field svg { width: 0.95rem; height: 0.95rem; fill: var(--muted); flex: none; transition: fill 0.2s ease; }
+    .field:focus-within svg { fill: var(--accent); }
     .field input, .field select {
       background: transparent; color: inherit; border: none; outline: none;
-      font: inherit; font-size: 0.88rem; height: 100%;
+      font: inherit; font-size: 0.85rem; height: 100%;
     }
     .search { min-width: 15rem; flex: 1 1 15rem; }
     .search input { width: 100%; }
-    .select { position: relative; padding-right: 1.9rem; }
-    .select::after {
-      content: ''; position: absolute; right: 0.75rem; top: 50%;
-      width: 0.5rem; height: 0.5rem; border-right: 2px solid var(--muted, #8b98ab);
-      border-bottom: 2px solid var(--muted, #8b98ab); transform: translateY(-65%) rotate(45deg);
-      pointer-events: none;
+    .custom-select {
+      position: relative;
     }
-    .select select { appearance: none; -webkit-appearance: none; cursor: pointer; padding-right: 0.3rem; }
-    .select.narrow { min-width: 5.5rem; }
-    .field option { background: var(--panel-2, #18212f); color: var(--text, #e8eef7); }
+    .select-btn {
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.5rem;
+      min-width: 8rem;
+      width: 100%;
+      text-align: left;
+    }
+    .select-btn.narrow {
+      min-width: 5.25rem;
+    }
+    .select-btn span {
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .chevron {
+      display: inline-block;
+      width: 0.38rem;
+      height: 0.38rem;
+      border-right: 2px solid var(--muted);
+      border-bottom: 2px solid var(--muted);
+      transform: translateY(-25%) rotate(45deg);
+      transition: transform 0.2s ease, border-color 0.2s ease;
+      flex-shrink: 0;
+      margin-left: 0.25rem;
+    }
+    .custom-select.open .chevron {
+      transform: translateY(25%) rotate(-135deg);
+      border-color: var(--accent);
+    }
+    .options-menu {
+      position: absolute;
+      top: calc(100% + 0.35rem);
+      left: 0;
+      min-width: 100%;
+      background: color-mix(in srgb, var(--panel) 94%, transparent);
+      backdrop-filter: blur(12px);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      box-shadow: var(--shadow);
+      padding: 0.35rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.2rem;
+      z-index: 50;
+      opacity: 0;
+      transform: translateY(6px);
+      pointer-events: none;
+      transition: opacity 0.2s cubic-bezier(0.16, 1, 0.3, 1), transform 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+    .custom-select.open .options-menu {
+      opacity: 1;
+      transform: translateY(0);
+      pointer-events: auto;
+    }
+    .option-item {
+      font: inherit;
+      font-size: 0.85rem;
+      text-align: left;
+      padding: 0.55rem 0.85rem;
+      border: none;
+      background: transparent;
+      color: var(--text);
+      border-radius: 8px;
+      cursor: pointer;
+      white-space: nowrap;
+      transition: background 0.15s ease, color 0.15s ease;
+      width: 100%;
+    }
+    .option-item:hover {
+      background: color-mix(in srgb, var(--accent) 8%, transparent);
+      color: var(--text);
+    }
+    .option-item.selected {
+      font-weight: 700;
+      background: color-mix(in srgb, var(--accent) 12%, transparent);
+      color: var(--text);
+    }
 
-    .toolbar { display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.6rem; min-height: 1.6rem; }
-    .count { font-size: 0.8rem; color: var(--muted); }
+    .toolbar { display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.75rem; min-height: 1.8rem; }
+    .count { font-size: 0.85rem; color: var(--muted); }
     .count b { color: var(--text); font-variant-numeric: tabular-nums; }
     .clear {
-      font: inherit; font-size: 0.78rem; font-weight: 600; cursor: pointer;
-      color: var(--accent); background: none; border: none; padding: 0.2rem 0.3rem; border-radius: 6px;
+      font: inherit; font-size: 0.8rem; font-weight: 700; cursor: pointer;
+      color: var(--accent); background: color-mix(in srgb, var(--accent) 8%, transparent); border: none; padding: 0.3rem 0.7rem; border-radius: 8px;
+      transition: all 0.2s ease;
     }
-    .clear:hover { text-decoration: underline; }
+    .clear:hover { background: color-mix(in srgb, var(--accent) 15%, transparent); transform: translateY(-1px); }
+    .clear:active { transform: translateY(0); }
 
     .msg {
-      display: flex; flex-direction: column; gap: 0.3rem; align-items: center;
-      text-align: center; color: var(--muted); padding: 3rem 1rem; font-size: 0.9rem;
-      border: 1px dashed var(--border); border-radius: var(--radius);
+      display: flex; flex-direction: column; gap: 0.5rem; align-items: center;
+      text-align: center; color: var(--muted); padding: 3.5rem 1.5rem; font-size: 0.95rem;
+      border: 1px dashed var(--border-strong); border-radius: var(--radius);
+      background: var(--panel-2);
+      box-shadow: var(--shadow);
+      transition: border-color 0.3s ease;
     }
-    .msg strong { color: var(--text); font-size: 1rem; }
-    .msg.error { border-color: color-mix(in srgb, var(--down) 40%, transparent); }
+    .msg strong { color: var(--text); font-size: 1.1rem; font-weight: 700; }
+    .msg.error { border-color: color-mix(in srgb, var(--down) 30%, transparent); background: color-mix(in srgb, var(--down) 2%, var(--panel-2)); }
     .msg.error strong { color: var(--down); }
-    .empty-state .glyph { font-size: 2rem; color: var(--faint); }
+    .empty-state .glyph { font-size: 2.5rem; color: var(--accent); margin-bottom: 0.25rem; animation: pulse-glyph 2s infinite ease-in-out; }
+    @keyframes pulse-glyph { 0%, 100% { transform: scale(1); opacity: 0.7; } 50% { transform: scale(1.1); opacity: 1; } }
 
     .skeleton-list { display: flex; flex-direction: column; gap: 0.5rem; }
     .skeleton-row {
-      height: 3rem; border-radius: var(--radius-sm);
-      background: linear-gradient(90deg, var(--panel) 0%, var(--panel-2) 50%, var(--panel) 100%);
+      height: 3.2rem; border-radius: var(--radius-sm);
+      background: linear-gradient(90deg, var(--panel) 25%, var(--panel-2) 50%, var(--panel) 75%);
       background-size: 200% 100%; border: 1px solid var(--border);
-      animation: shimmer 1.4s ease-in-out infinite;
+      animation: shimmer 1.6s infinite linear;
     }
     @keyframes shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
     .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
 
-    .foot { margin-top: 2rem; padding-top: 1rem; border-top: 1px solid var(--border); font-size: 0.72rem; color: var(--faint); text-align: center; }
+    .foot { margin-top: 2.5rem; padding-top: 1.25rem; border-top: 1px solid var(--border); font-size: 0.75rem; color: var(--faint); text-align: center; letter-spacing: 0.02em; }
   `,
 })
 export class FleetView {
   protected readonly store = inject(FleetStore);
   private readonly router = inject(Router);
   private readonly route = inject(ActivatedRoute);
+
+  // Active custom dropdown tracking
+  protected readonly activeDropdown = signal<'status' | 'band' | 'sort' | 'order' | null>(null);
+
+  // Computed labels for selected filters
+  protected readonly statusLabel = computed(() => {
+    switch (this.filter().status) {
+      case 'up': return 'Up';
+      case 'degraded': return 'Degraded';
+      case 'down': return 'Down';
+      default: return 'All statuses';
+    }
+  });
+
+  protected readonly bandLabel = computed(() => {
+    switch (this.filter().band) {
+      case '5GHz': return '5GHz';
+      case '5.8GHz': return '5.8GHz';
+      case '11GHz': return '11GHz';
+      case '24GHz': return '24GHz';
+      default: return 'All bands';
+    }
+  });
+
+  protected readonly sortLabel = computed(() => {
+    switch (this.filter().sort) {
+      case 'status': return 'Sort: Status';
+      case 'throughput': return 'Sort: Throughput';
+      case 'capacity': return 'Sort: Capacity';
+      default: return 'Sort: Name';
+    }
+  });
+
+  protected readonly orderLabel = computed(() => {
+    return this.filter().order === 'desc' ? 'Desc' : 'Asc';
+  });
+
+  protected toggleDropdown(type: 'status' | 'band' | 'sort' | 'order', event: Event): void {
+    event.stopPropagation();
+    this.activeDropdown.update((current) => (current === type ? null : type));
+  }
+
+  protected selectOption(key: keyof FleetFilter, value: string): void {
+    this.set(key, value);
+    this.activeDropdown.set(null);
+  }
+
+  protected closeDropdowns(): void {
+    this.activeDropdown.set(null);
+  }
 
   // URL query params, bound via router component-input binding.
   readonly status = input<string>();
