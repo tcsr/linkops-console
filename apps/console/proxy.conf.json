@@ -1,5 +1,0 @@
-{
-  "/links": { "target": "http://localhost:3000", "secure": false, "changeOrigin": true },
-  "/fleet": { "target": "http://localhost:3000", "secure": false, "changeOrigin": true },
-  "/api": { "target": "http://localhost:3000", "secure": false, "changeOrigin": true }
-}
