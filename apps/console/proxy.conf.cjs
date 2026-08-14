@@ -1,14 +1,13 @@
 /**
- * Dev-server proxy. The API is mounted at bare paths (`/links`, `/fleet`,
- * `/api`), which collide with the SPA's client-side routes (e.g. `/links/:id`).
- * Without a bypass, a full-page load of a detail route would be proxied to the
- * API and return JSON instead of the app.
+ * Dev-server proxy. The API is served under a single `/api` namespace
+ * (`/api/links`, `/api/fleet/summary`, `/api/stream`), so it no longer overlaps
+ * the SPA's client-side routes (`/links/:id`, `/links/new`, …) — those are
+ * served natively by the dev server's index fallback.
  *
- * The `bypass` hook distinguishes a browser navigation (Accept: text/html) from
- * an API call: navigations are served `index.html` so the Angular router owns
- * them (deep links and refresh work), while XHR JSON and the SSE stream
- * (`text/event-stream`) fall through to the real API. This is dev-tooling only —
- * it changes no backend route or contract.
+ * The `bypass` hook is retained defensively: a browser navigation (Accept:
+ * text/html) is served `index.html` so the Angular router owns it, while XHR
+ * JSON and the SSE stream (`text/event-stream`) fall through to the real API.
+ * This is dev-tooling only — it changes no backend route or contract.
  */
 const target = 'http://localhost:3000';
 
@@ -21,10 +20,6 @@ function bypass(req) {
   return undefined;
 }
 
-const common = { target, secure: false, changeOrigin: true, bypass };
-
 module.exports = {
-  '/links': { ...common },
-  '/fleet': { ...common },
-  '/api': { ...common },
+  '/api': { target, secure: false, changeOrigin: true, bypass },
 };

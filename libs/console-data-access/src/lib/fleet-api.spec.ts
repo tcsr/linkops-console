@@ -21,28 +21,28 @@ describe('FleetApi (detail + mutations)', () => {
 
   afterEach(() => http.verify());
 
-  it('GET /links/:id', () => {
+  it('GET /api/links/:id', () => {
     api.linkById('link-1').subscribe();
-    const req = http.expectOne('/links/link-1');
+    const req = http.expectOne('/api/links/link-1');
     expect(req.request.method).toBe('GET');
     req.flush({});
   });
 
   it('omits windowMs when not provided', () => {
     api.telemetry('link-1').subscribe();
-    const req = http.expectOne('/links/link-1/telemetry');
+    const req = http.expectOne('/api/links/link-1/telemetry');
     expect(req.request.params.has('windowMs')).toBe(false);
     req.flush({ linkId: 'link-1', windowMs: 0, count: 0, samples: [] });
   });
 
   it('passes windowMs as a query param when provided', () => {
     api.telemetry('link-1', 60000).subscribe();
-    const req = http.expectOne((r) => r.url === '/links/link-1/telemetry');
+    const req = http.expectOne((r) => r.url === '/api/links/link-1/telemetry');
     expect(req.request.params.get('windowMs')).toBe('60000');
     req.flush({ linkId: 'link-1', windowMs: 60000, count: 0, samples: [] });
   });
 
-  it('POST /links with the create payload', () => {
+  it('POST /api/links with the create payload', () => {
     const payload: CreateLinkPayload = {
       name: 'X',
       siteA: 'A',
@@ -54,25 +54,25 @@ describe('FleetApi (detail + mutations)', () => {
       txPowerDbm: 10,
     };
     api.create(payload).subscribe();
-    const req = http.expectOne('/links');
+    const req = http.expectOne('/api/links');
     expect(req.request.method).toBe('POST');
     expect(req.request.body).toEqual(payload);
     req.flush({});
   });
 
-  it('PATCH /links/:id with expectedVersion', () => {
+  it('PATCH /api/links/:id with expectedVersion', () => {
     const payload: UpdateLinkPayload = { expectedVersion: 4, name: 'Y' };
     api.update('link-1', payload).subscribe();
-    const req = http.expectOne('/links/link-1');
+    const req = http.expectOne('/api/links/link-1');
     expect(req.request.method).toBe('PATCH');
     expect(req.request.body).toEqual(payload);
     req.flush({});
   });
 
-  it('DELETE /links/:id and completes on 204', () => {
+  it('DELETE /api/links/:id and completes on 204', () => {
     let completed = false;
     api.delete('link-1').subscribe({ complete: () => (completed = true) });
-    const req = http.expectOne('/links/link-1');
+    const req = http.expectOne('/api/links/link-1');
     expect(req.request.method).toBe('DELETE');
     // 204 No Content: the server sends no body; the stream still completes.
     req.flush(null, { status: 204, statusText: 'No Content' });
@@ -81,7 +81,7 @@ describe('FleetApi (detail + mutations)', () => {
 
   it('encodes the id in the DELETE url', () => {
     api.delete('a/b').subscribe();
-    const req = http.expectOne('/links/a%2Fb');
+    const req = http.expectOne('/api/links/a%2Fb');
     expect(req.request.method).toBe('DELETE');
     req.flush(null, { status: 204, statusText: 'No Content' });
   });

@@ -193,6 +193,7 @@ describe('StreamController (HTTP contract)', () => {
       })
       .compile();
     app = moduleRef.createNestApplication();
+    app.setGlobalPrefix('api');
     await app.init();
   });
 
@@ -226,9 +227,10 @@ describe('StreamController (HTTP contract)', () => {
     });
   });
 
-  it('leaves the existing M3 routes unchanged (no global /api prefix)', async () => {
-    await request(app.getHttpServer()).get('/links').expect(200);
-    await request(app.getHttpServer()).get('/fleet/summary').expect(200);
-    await request(app.getHttpServer()).get('/api/links').expect(404);
+  it('serves the M3 routes under the global /api prefix', async () => {
+    await request(app.getHttpServer()).get('/api/links').expect(200);
+    await request(app.getHttpServer()).get('/api/fleet/summary').expect(200);
+    // The old un-prefixed roots are no longer served.
+    await request(app.getHttpServer()).get('/links').expect(404);
   });
 });

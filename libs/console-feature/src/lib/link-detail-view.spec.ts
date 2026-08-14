@@ -95,15 +95,15 @@ describe('LinkDetailView', () => {
   afterEach(() => http.verify());
 
   function flushFleet(): void {
-    http.expectOne('/links').flush([view('link-1')]);
-    http.expectOne('/fleet/summary').flush(summary);
+    http.expectOne('/api/links').flush([view('link-1')]);
+    http.expectOne('/api/fleet/summary').flush(summary);
   }
 
   it('renders the link config, live status and current throughput', () => {
     const fixture = setup('link-1');
     flushFleet();
-    http.expectOne('/links/link-1').flush(view('link-1'));
-    http.expectOne('/links/link-1/telemetry').flush({
+    http.expectOne('/api/links/link-1').flush(view('link-1'));
+    http.expectOne('/api/links/link-1/telemetry').flush({
       linkId: 'link-1',
       windowMs: 300000,
       count: 1,
@@ -124,11 +124,11 @@ describe('LinkDetailView', () => {
   it('shows a not-found state for an unknown link id', () => {
     const fixture = setup('ghost');
     flushFleet();
-    http.expectOne('/links/ghost').flush(
+    http.expectOne('/api/links/ghost').flush(
       { error: { code: 'LINK_NOT_FOUND', message: 'Unknown' } },
       { status: 404, statusText: 'Not Found' },
     );
-    http.match((r) => r.url === '/links/ghost/telemetry').forEach((r) => {
+    http.match((r) => r.url === '/api/links/ghost/telemetry').forEach((r) => {
       if (!r.cancelled) r.flush({ linkId: 'ghost', windowMs: 0, count: 0, samples: [] });
     });
     fixture.detectChanges();
@@ -143,8 +143,8 @@ describe('LinkDetailView', () => {
     function loadDetail(id = 'link-1') {
       const fixture = setup(id);
       flushFleet();
-      http.expectOne(`/links/${id}`).flush(view(id));
-      http.expectOne(`/links/${id}/telemetry`).flush({
+      http.expectOne(`/api/links/${id}`).flush(view(id));
+      http.expectOne(`/api/links/${id}/telemetry`).flush({
         linkId: id,
         windowMs: 300000,
         count: 0,
@@ -211,7 +211,7 @@ describe('LinkDetailView', () => {
       fixture.detectChanges();
       expect((q(fixture, '.confirm-yes') as HTMLButtonElement).disabled).toBe(true);
 
-      http.expectOne((r) => r.method === 'DELETE' && r.url === '/links/link-1')
+      http.expectOne((r) => r.method === 'DELETE' && r.url === '/api/links/link-1')
         .flush(null, { status: 204, statusText: 'No Content' });
       await tick();
 

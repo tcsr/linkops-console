@@ -127,8 +127,8 @@ describe('FleetStore', () => {
 
   function loadSnapshot(links = [view('link-1'), view('link-2')]): void {
     store.load();
-    http.expectOne('/links').flush(links);
-    http.expectOne('/fleet/summary').flush(summary);
+    http.expectOne('/api/links').flush(links);
+    http.expectOne('/api/fleet/summary').flush(summary);
   }
 
   it('loads the REST snapshot into signal state', () => {
@@ -148,11 +148,11 @@ describe('FleetStore', () => {
 
   it('surfaces a REST failure as an error state with a message', () => {
     store.load();
-    http.expectOne('/links').flush('nope', { status: 500, statusText: 'Server Error' });
+    http.expectOne('/api/links').flush('nope', { status: 500, statusText: 'Server Error' });
     // forkJoin cancels the sibling request when /links errors; drain it if the
     // cancellation has not already removed it.
     http
-      .match((r) => r.url === '/fleet/summary')
+      .match((r) => r.url === '/api/fleet/summary')
       .forEach((r) => {
         if (!r.cancelled) {
           r.flush(summary);

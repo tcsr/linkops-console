@@ -28,15 +28,15 @@ direction is unchanged from M0: `api-feature → domain + api-data-access`.
 
 | Method & path | Success | Notes |
 | ------------- | ------- | ----- |
-| `GET /links` | 200 | Filters: `band`, `mode`, `search` (repository/domain-level), `status` (derived, filtered in feature layer). Sort: `sort` ∈ {name, capacityMbps, status, createdAt, updatedAt}, `order` ∈ {asc, desc}. |
-| `GET /links/:id` | 200 | Link view (link + derived `status` + `latestSample`). |
-| `POST /links` | 201 | Body = `CreateLinkDto`. |
-| `PATCH /links/:id` | 200 | Body = `UpdateLinkDto` (partial + required `expectedVersion`). |
-| `DELETE /links/:id` | 204 | — |
-| `GET /links/:id/telemetry?windowMs=` | 200 | Samples from the ring buffer via `repository.getSamples`; default window 5 min (300 000 ms). |
-| `GET /fleet/summary` | 200 | Domain `FleetSummary`. |
+| `GET /api/links` | 200 | Filters: `band`, `mode`, `search` (repository/domain-level), `status` (derived, filtered in feature layer). Sort: `sort` ∈ {name, capacityMbps, status, createdAt, updatedAt}, `order` ∈ {asc, desc}. |
+| `GET /api/links/:id` | 200 | Link view (link + derived `status` + `latestSample`). |
+| `POST /api/links` | 201 | Body = `CreateLinkDto`. |
+| `PATCH /api/links/:id` | 200 | Body = `UpdateLinkDto` (partial + required `expectedVersion`). |
+| `DELETE /api/links/:id` | 204 | — |
+| `GET /api/links/:id/telemetry?windowMs=` | 200 | Samples from the ring buffer via `repository.getSamples`; default window 5 min (300 000 ms). |
+| `GET /api/fleet/summary` | 200 | Domain `FleetSummary`. |
 
-`GET /links` and `GET /links/:id` return a **LinkView**: the domain `Link` plus a
+`GET /api/links` and `GET /api/links/:id` return a **LinkView**: the domain `Link` plus a
 `status` derived on demand via `deriveLinkStatus(link, latestSample, now)` and the
 `latestSample` (or `null`). Status is never stored.
 
@@ -75,12 +75,12 @@ name) — never for ordinary validation errors.
 
 ## Optimistic concurrency
 
-`PATCH /links/:id` requires `expectedVersion` in the body. The service forwards it
+`PATCH /api/links/:id` requires `expectedVersion` in the body. The service forwards it
 to `repository.update(id, patch, expectedVersion)`; a mismatch throws
 `VersionConflictError` → 409 `VERSION_CONFLICT` (with `expectedVersion` /
 `actualVersion` in `details`) and the stored entity is left untouched.
 
-`DELETE /links/:id` takes **no** version parameter: it returns **204** on success
+`DELETE /api/links/:id` takes **no** version parameter: it returns **204** on success
 and **404** `LINK_NOT_FOUND` for an unknown id. It therefore never produces the
 optimistic-concurrency 409 — a delete is unconditional, so there is no stale-version
 class to detect. Optimistic concurrency applies to `PATCH` only. (The M7 console

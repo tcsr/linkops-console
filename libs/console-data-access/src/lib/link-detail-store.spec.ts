@@ -112,16 +112,16 @@ describe('LinkDetailStore', () => {
 
   /** Drain the fleet snapshot the store triggers to power live updates. */
   function flushFleet(links = [view('link-1')]): void {
-    http.expectOne('/links').flush(links);
-    http.expectOne('/fleet/summary').flush(summary);
+    http.expectOne('/api/links').flush(links);
+    http.expectOne('/api/fleet/summary').flush(summary);
   }
 
   function flushDetail(
     id = 'link-1',
     samples: TelemetrySample[] = [],
   ): void {
-    http.expectOne(`/links/${id}`).flush(view(id));
-    http.expectOne(`/links/${id}/telemetry`).flush({
+    http.expectOne(`/api/links/${id}`).flush(view(id));
+    http.expectOne(`/api/links/${id}/telemetry`).flush({
       linkId: id,
       windowMs: 300000,
       count: samples.length,
@@ -143,12 +143,12 @@ describe('LinkDetailStore', () => {
   it('maps a 404 to the not-found state', () => {
     store.load('ghost');
     flushFleet();
-    http.expectOne('/links/ghost').flush(
+    http.expectOne('/api/links/ghost').flush(
       { error: { code: 'LINK_NOT_FOUND', message: 'Unknown link' } },
       { status: 404, statusText: 'Not Found' },
     );
     // forkJoin cancels the sibling telemetry request on error.
-    http.match((r) => r.url === '/links/ghost/telemetry').forEach((r) => {
+    http.match((r) => r.url === '/api/links/ghost/telemetry').forEach((r) => {
       if (!r.cancelled) r.flush({ linkId: 'ghost', windowMs: 0, count: 0, samples: [] });
     });
     expect(store.state()).toBe('not-found');
@@ -157,8 +157,8 @@ describe('LinkDetailStore', () => {
   it('maps a non-404 failure to the error state', () => {
     store.load('link-1');
     flushFleet();
-    http.expectOne('/links/link-1').flush('boom', { status: 500, statusText: 'Server Error' });
-    http.match((r) => r.url === '/links/link-1/telemetry').forEach((r) => {
+    http.expectOne('/api/links/link-1').flush('boom', { status: 500, statusText: 'Server Error' });
+    http.match((r) => r.url === '/api/links/link-1/telemetry').forEach((r) => {
       if (!r.cancelled) r.flush({ linkId: 'link-1', windowMs: 0, count: 0, samples: [] });
     });
     expect(store.state()).toBe('error');
@@ -203,7 +203,7 @@ describe('LinkDetailStore', () => {
     }
 
     function expectDelete(id = 'link-1') {
-      return http.expectOne((r) => r.method === 'DELETE' && r.url === `/links/${id}`);
+      return http.expectOne((r) => r.method === 'DELETE' && r.url === `/api/links/${id}`);
     }
 
     beforeEach(() => {

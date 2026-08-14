@@ -27,13 +27,14 @@ To keep the reasoning honest, three categories are called out throughout:
 | ------------- | -------- | ----- |
 | `GET /api/stream` | `200 text/event-stream` | Events: `link.telemetry`, `link.status`, `fleet.summary`. |
 
-**Routing (approved decision).** The PDF's suggested contract prefixes routes
-with `/api`, but it also states the contract is *"a starting point, not a spec to
-satisfy."* M3 shipped its routes unprefixed (`/links`, `/fleet/summary`, …). M4
-adds **exactly** `/api/stream` via `@Sse('api/stream')` on a prefix-less
-controller — it does **not** add a global `/api` prefix, so the merged M3 routes
-are untouched. The `/links` vs `/api/stream` asymmetry is deliberate; a uniform
-prefix is a later-milestone decision.
+**Routing (approved decision).** The whole API is served under a single `/api`
+namespace, matching the PDF's suggested contract (`/api/links`,
+`/api/fleet/summary`, `/api/stream`). This is realized with one
+`app.setGlobalPrefix('api')` in `apps/api/src/main.ts`; controllers declare bare
+routes, so the SSE endpoint is `@Sse('stream')` and the prefix makes its
+effective path `/api/stream` (declaring `api/stream` there would double-prefix to
+`/api/api/stream`). A single global prefix keeps REST and SSE uniform without
+repeating `api/` on every controller.
 
 ## Event flow
 
@@ -42,7 +43,7 @@ flowchart TD
   SIM["TelemetrySimulator (1 Hz)\nlibs/api-data-access"] -->|"appendSample()"| REPO["Repository ring buffers\n(REST history)"]
   SIM -->|"TelemetrySink.emit(batch)"| STREAM["TelemetryStreamService\nlibs/api-feature"]
   STREAM -->|"link.telemetry / link.status / fleet.summary"| BUS["FleetEventBus\n(RxJS Subject)"]
-  BUS --> CTRL["StreamController @Sse('api/stream')"]
+  BUS --> CTRL["StreamController @Sse('stream') → /api/stream"]
   CTRL -->|"text/event-stream"| A["client A"]
   CTRL --> B["client B"]
   CTRL --> C["client C"]
@@ -165,12 +166,12 @@ disconnect → EventSource reconnects → a fresh live subscription
 
 There is **no** server-side replay buffer and **no** `Last-Event-ID`
 reconstruction. Historical gaps are recovered through the existing REST endpoint
-`GET /links/:id/telemetry`. The `id:` field is informational and never triggers
+`GET /api/links/:id/telemetry`. The `id:` field is informational and never triggers
 replay.
 
 ## Delete while streaming (requirement)
 
-Deletion goes through the existing REST `DELETE /links/:id`. On the next tick the
+Deletion goes through the existing REST `DELETE /api/links/:id`. On the next tick the
 stream service reads current links from the repository, so a deleted link:
 
 - produces no further telemetry or status events,

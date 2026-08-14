@@ -15,6 +15,13 @@ async function bootstrap(): Promise<void> {
   const app = await NestFactory.create(ApiModule);
   app.enableShutdownHooks();
 
+  // Every HTTP + SSE route is served under `/api` (the assignment's suggested
+  // contract). Controllers declare bare routes (`links`, `fleet/summary`,
+  // `stream`); this single prefix makes the effective paths `/api/links`,
+  // `/api/fleet/summary`, `/api/stream`. No root/health routes exist, so no
+  // `exclude` is needed.
+  app.setGlobalPrefix('api');
+
   const port = Number(process.env.PORT ?? 3000);
   await app.listen(port);
   console.log(`[linkops-api] M3 REST API listening on :${port}`);

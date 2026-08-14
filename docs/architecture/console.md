@@ -49,7 +49,7 @@ view-model (`FleetRow`), never the data-access model. No `console → api`, no
 ## Data flow
 
 ```
-GET /links, /fleet/summary ──► FleetApi ──►┐
+GET /api/links, /api/fleet/summary ──► FleetApi ──►┐
                                            ├─► FleetStore (signals) ─► FleetView ─► console-ui
 GET /api/stream (EventSource) ─► buffer ──►┘        │                    (filter/sort)
    link.telemetry / link.status / fleet.summary     │
@@ -58,7 +58,7 @@ GET /api/stream (EventSource) ─► buffer ──►┘        │             
                                             connection(), error(), isEmpty()
 ```
 
-- **Initial snapshot** via REST (`FleetApi` → `GET /links` + `/fleet/summary`).
+- **Initial snapshot** via REST (`FleetApi` → `GET /api/links` + `/api/fleet/summary`).
 - **Live deltas** via the browser `EventSource` on `GET /api/stream`. No polling,
   no second scheduler. The server remains the authority on derived status — no
   business logic is duplicated in the client.
@@ -89,7 +89,7 @@ a control navigates (`queryParamsHandling: 'merge'`, defaults cleared) so state
 round-trips through the URL. Filtering/sorting is derived **client-side over the
 live signal state** (`selectRows`, a pure function), so live updates keep
 re-filtering/re-sorting without a server round-trip *(decision D6)*. The REST
-`GET /links` filter/sort capability stays available but is not called per
+`GET /api/links` filter/sort capability stays available but is not called per
 interaction.
 
 ## States
@@ -139,17 +139,18 @@ refresh** load the same view. The fleet list navigates to detail by emitting a
 router-agnostic `rowSelect` from the presentational table; the container decides
 the destination.
 
-**Dev-server proxy bypass** *(implementation detail)* — the API is mounted at
-bare paths (`/links`, `/fleet`, `/api`) that collide with the client routes. The
-proxy (`proxy.conf.cjs`) serves `index.html` for HTML navigations (so the router
-owns deep links/refresh) while XHR JSON and the SSE stream still proxy to the
-API. No backend route or contract changes.
+**Dev-server proxy** *(implementation detail)* — the API lives under a single
+`/api` namespace, so it no longer overlaps the client routes (`/links/:id`, …),
+which the dev server serves natively. The proxy (`proxy.conf.cjs`) forwards `/api`
+to the API and retains an `index.html` bypass for HTML navigations (so the router
+owns deep links/refresh) while XHR JSON and the SSE stream proxy through. No
+backend route or contract changes.
 
 ### Detail data flow *(reuses the single SSE stream — no second EventSource)*
 
 ```
-/links/:id ─► FleetApi.linkById ──►┐
-/links/:id/telemetry ─► FleetApi ──┤─► LinkDetailStore (signals) ─► LinkDetailView
+/api/links/:id ─► FleetApi.linkById ──►┐
+/api/links/:id/telemetry ─► FleetApi ──┤─► LinkDetailStore (signals) ─► LinkDetailView
                                     │        │                         (attrs, badge,
 FleetStore.rows() (live SSE) ──────►┘        ▼                          sparkline)
    (already coalesced per frame)     link(), status(), latestSample(),
@@ -211,7 +212,7 @@ LinkDetailView (Delete → Confirm/Cancel, inline signal `confirming`)
       │ confirm
       ▼
 LinkDetailStore.deleteLink()   ── owns transport + state (deleting/deleteError)
-      │ FleetApi.delete → DELETE /links/:id
+      │ FleetApi.delete → DELETE /api/links/:id
       ├─ 204  ─► FleetStore.removeLink(id) ─► view navigates to '/'
       ├─ 404  ─► already gone: prune + navigate (same end state)
       └─ net/5xx ─► deleteError (readable); stay on page; retry
@@ -242,7 +243,7 @@ edit + Save ─► PATCH { …patch, expectedVersion } ─► 409 VERSION_CONFLI
 conflict banner ("changed elsewhere; server at vN")   ── Save is blocked
       │ Reload latest
       ▼
-GET /links/:id ─► re-prefill form + version := latest ─► conflict cleared
+GET /api/links/:id ─► re-prefill form + version := latest ─► conflict cleared
       │ user re-applies their change
       ▼
 Save ─► PATCH { …patch, expectedVersion: latest } ─► 200 ─► navigate to detail

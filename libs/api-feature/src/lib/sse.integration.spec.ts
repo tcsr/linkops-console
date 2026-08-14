@@ -148,6 +148,7 @@ describe('SSE stream (end-to-end integration)', () => {
       .compile();
 
     app = moduleRef.createNestApplication();
+    app.setGlobalPrefix('api');
     await app.init();
     await app.listen(0);
     port = (app.getHttpServer().address() as AddressInfo).port;
@@ -285,7 +286,7 @@ describe('SSE stream (end-to-end integration)', () => {
     await stream.handleTick([upSample(L1, 220), upSample(L2, 400)]);
     await client.waitFor(() => client.ofType('link.telemetry').length >= 2, 'both links');
 
-    await request(app.getHttpServer()).delete('/links/link-0001').expect(204);
+    await request(app.getHttpServer()).delete('/api/links/link-0001').expect(204);
 
     const before = client.ofType('link.telemetry').length;
     await stream.handleTick([upSample(L1, 220), upSample(L2, 400)]); // L1 now deleted

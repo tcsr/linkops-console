@@ -94,7 +94,7 @@ describe('LinkFormView', () => {
     fixture.detectChanges();
     submit(el);
 
-    const req = http.expectOne('/links');
+    const req = http.expectOne('/api/links');
     expect(req.request.method).toBe('POST');
     expect(req.request.body.name).toBe('New Radio Link');
     req.flush(created('new-1'));
@@ -104,7 +104,7 @@ describe('LinkFormView', () => {
 
   it('prefills the edit form and PATCHes with the expected version', () => {
     const fixture = setup('link-1');
-    http.expectOne('/links/link-1').flush(created('link-1')); // version 1
+    http.expectOne('/api/links/link-1').flush(created('link-1')); // version 1
     fixture.detectChanges();
 
     const el = fixture.nativeElement as HTMLElement;
@@ -112,7 +112,7 @@ describe('LinkFormView', () => {
     fixture.detectChanges();
     submit(el);
 
-    const req = http.expectOne('/links/link-1');
+    const req = http.expectOne('/api/links/link-1');
     expect(req.request.method).toBe('PATCH');
     expect(req.request.body.expectedVersion).toBe(1);
     expect(req.request.body.name).toBe('Renamed Link');
@@ -128,7 +128,7 @@ describe('LinkFormView', () => {
     fixture.detectChanges();
     submit(el);
 
-    http.expectOne('/links').flush(
+    http.expectOne('/api/links').flush(
       { error: { code: 'DUPLICATE_LINK_NAME', message: 'Name already in use' } },
       { status: 409, statusText: 'Conflict' },
     );
@@ -149,7 +149,7 @@ describe('LinkFormView', () => {
     submit(el);
     submit(el); // second click while the first is pending
 
-    const matches = http.match('/links');
+    const matches = http.match('/api/links');
     expect(matches).toHaveLength(1); // only one POST issued
     matches[0].flush(created('new-1'));
   });
@@ -177,14 +177,14 @@ describe('LinkFormView', () => {
     /** Drive an edit into the VERSION_CONFLICT state (initial version 1). */
     function editIntoConflict(actualVersion = 4) {
       const fixture = setup('link-1');
-      http.expectOne('/links/link-1').flush(created('link-1')); // version 1
+      http.expectOne('/api/links/link-1').flush(created('link-1')); // version 1
       fixture.detectChanges();
       const el = fixture.nativeElement as HTMLElement;
       setInput(el, 'name', 'My Edit');
       fixture.detectChanges();
       submit(el);
 
-      const patch = http.expectOne('/links/link-1');
+      const patch = http.expectOne('/api/links/link-1');
       expect(patch.request.method).toBe('PATCH');
       expect(patch.request.body.expectedVersion).toBe(1);
       patch.flush(conflictBody(actualVersion), {
@@ -217,7 +217,7 @@ describe('LinkFormView', () => {
       const { fixture, el } = editIntoConflict(4);
 
       reloadBtn(el)?.click();
-      const get = http.expectOne('/links/link-1');
+      const get = http.expectOne('/api/links/link-1');
       expect(get.request.method).toBe('GET'); // #5
       get.flush({ ...created('link-1'), name: 'Server Renamed', version: 4 });
       fixture.detectChanges();
@@ -232,7 +232,7 @@ describe('LinkFormView', () => {
       const { fixture, el } = editIntoConflict(4);
 
       reloadBtn(el)?.click();
-      http.expectOne('/links/link-1').flush({
+      http.expectOne('/api/links/link-1').flush({
         ...created('link-1'),
         name: 'Server Renamed',
         version: 4,
@@ -244,7 +244,7 @@ describe('LinkFormView', () => {
       fixture.detectChanges();
       submit(el);
 
-      const patch = http.expectOne('/links/link-1');
+      const patch = http.expectOne('/api/links/link-1');
       expect(patch.request.method).toBe('PATCH');
       expect(patch.request.body.expectedVersion).toBe(4); // #7/#11/#13 fresh version
       expect(patch.request.body.name).toBe('User Reapplied');
@@ -257,7 +257,7 @@ describe('LinkFormView', () => {
       const { fixture, el } = editIntoConflict();
 
       reloadBtn(el)?.click();
-      http.expectOne('/links/link-1').error(new ProgressEvent('error'), {
+      http.expectOne('/api/links/link-1').error(new ProgressEvent('error'), {
         status: 0,
         statusText: 'Unknown Error',
       });
@@ -269,7 +269,7 @@ describe('LinkFormView', () => {
 
       // #16 retry the reload — succeeds
       reloadBtn(el)?.click();
-      http.expectOne('/links/link-1').flush({ ...created('link-1'), version: 4 });
+      http.expectOne('/api/links/link-1').flush({ ...created('link-1'), version: 4 });
       fixture.detectChanges();
       expect(conflictBanner(el)).toBeNull();
     });
@@ -278,7 +278,7 @@ describe('LinkFormView', () => {
       const { fixture, el } = editIntoConflict();
 
       reloadBtn(el)?.click();
-      http.expectOne('/links/link-1').flush(
+      http.expectOne('/api/links/link-1').flush(
         { error: { code: 'INTERNAL', message: 'Internal server error' } },
         { status: 500, statusText: 'Server Error' },
       );
@@ -291,14 +291,14 @@ describe('LinkFormView', () => {
 
     it('keeps a duplicate-name 409 as a normal save error, not a version conflict', () => {
       const fixture = setup('link-1');
-      http.expectOne('/links/link-1').flush(created('link-1'));
+      http.expectOne('/api/links/link-1').flush(created('link-1'));
       fixture.detectChanges();
       const el = fixture.nativeElement as HTMLElement;
       setInput(el, 'name', 'Taken Name');
       fixture.detectChanges();
       submit(el);
 
-      http.expectOne('/links/link-1').flush(
+      http.expectOne('/api/links/link-1').flush(
         { error: { code: 'DUPLICATE_LINK_NAME', message: 'Name already in use' } },
         { status: 409, statusText: 'Conflict' },
       );

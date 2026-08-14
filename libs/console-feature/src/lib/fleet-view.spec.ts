@@ -84,8 +84,8 @@ describe('FleetView', () => {
   });
 
   function flushSnapshot(links: FleetLinkView[]): void {
-    http.expectOne('/links').flush(links);
-    http.expectOne('/fleet/summary').flush(summary);
+    http.expectOne('/api/links').flush(links);
+    http.expectOne('/api/fleet/summary').flush(summary);
   }
 
   it('shows a loading message before the snapshot resolves', () => {
@@ -129,8 +129,8 @@ describe('FleetView', () => {
 
   it('shows an error message when the snapshot request fails', () => {
     const fixture = setup();
-    http.expectOne('/links').flush('boom', { status: 500, statusText: 'Server Error' });
-    http.match((r) => r.url === '/fleet/summary').forEach((r) => {
+    http.expectOne('/api/links').flush('boom', { status: 500, statusText: 'Server Error' });
+    http.match((r) => r.url === '/api/fleet/summary').forEach((r) => {
       if (!r.cancelled) r.flush(summary);
     });
     fixture.detectChanges();

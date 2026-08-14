@@ -6,11 +6,11 @@ import type { FleetEvent } from './fleet-event.js';
 /**
  * Live telemetry stream (M4). One SSE endpoint, `GET /api/stream`.
  *
- * The route is declared literally as `api/stream` on a prefix-less controller
- * so the assignment's `/api/stream` path is served WITHOUT adding a global
- * `/api` prefix that would move the already-merged M3 routes (`/links`,
- * `/fleet/summary`, …). Revisiting a uniform prefix is a later-milestone
- * decision.
+ * The route is declared as the bare segment `stream`; the application-wide
+ * `app.setGlobalPrefix('api')` (see `apps/api/src/main.ts`) makes the effective
+ * path `/api/stream`, uniform with the REST routes (`/api/links`,
+ * `/api/fleet/summary`, …). Declaring `api/stream` here would double-prefix to
+ * `/api/api/stream`.
  *
  * The controller is intentionally thin: it owns no state, no timer, no store.
  * It subscribes to the existing {@link FleetEventBus} and maps each application
@@ -35,7 +35,7 @@ export class StreamController {
    * slow client cannot block others and per-client memory is bounded by the
    * socket buffer. Nothing is queued, so telemetry is inherently latest-wins.
    */
-  @Sse('api/stream')
+  @Sse('stream')
   stream(): Observable<MessageEvent> {
     return this.bus.events$().pipe(map((event) => this.toMessage(event)));
   }
