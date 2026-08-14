@@ -1,4 +1,10 @@
-@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap');
+/*
+ * Fonts are loaded via a <link> in index.html (browser-side), not a CSS
+ * @import here: a remote @import forces the bundler to resolve a network URL on
+ * every dev rebuild, which intermittently fails the global-styles entry
+ * ("Could not resolve angular:styles/global:styles"). The font-family stack
+ * below falls back to system fonts if the webfont is unavailable (offline).
+ */
 
 /*
  * Theme tokens. Default = RADWIN light (white surfaces, navy text, teal accent,
