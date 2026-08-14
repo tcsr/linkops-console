@@ -107,11 +107,14 @@ historical gaps are recovered via the REST telemetry history endpoint. The
 `EventSource` and any pending frame are released on component/store destroy
 (`DestroyRef`), so there are no leaked subscriptions.
 
-## Deletion note *(known limitation, tied to the M4 contract)*
+## Deletion note *(tied to the M4 contract; delete UX is M7)*
 
-The M4 stream carries no per-link create/delete event. A link deleted server-side
-simply stops receiving telemetry; the console reflects the removal on the next
-full snapshot load. Delete UX itself is M7 scope, so this does not affect M5/M6.
+The M4 stream carries no per-link create/delete event. Rather than wait for a full
+snapshot reload, the deleting client prunes the row locally (M7 —
+`FleetStore.removeLink`); see [M7 — concurrency + delete](#m7--concurrency--delete)
+below. A link deleted by *another* client still only disappears on the next full
+snapshot load — a documented multi-client limitation of the live-only M4 contract,
+not a bug.
 
 ## M6 — Link detail + edit
 
@@ -179,18 +182,83 @@ in progress**, blocks an invalid submit, guards against **duplicate submission**
 while a save is in flight, and on success navigates to the link's detail. Editing
 sends the loaded `version` as `expectedVersion` (optimistic concurrency).
 
-**M6/M7 seam** — a rejected save surfaces a readable message via a typed
-error-envelope parser (`parseApiError`). The richer **409 conflict-resolution
-UX** (show current vs. mine, let the user reconcile), **delete confirmation**, and
-delete/validation error polish are **M7** and are intentionally not built. The
-parser is the minimum shared foundation M7 will consume.
+**Error handling** — a rejected save surfaces a readable message via a typed
+error-envelope parser (`parseApiError`). M7 builds the richer **409
+conflict-resolution UX** and **delete confirmation** on top of this same parser
+(see [M7 — concurrency + delete](#m7--concurrency--delete)).
 
 ### States
 
 - **Detail** — `loading`, `not-found` (404), `error` (other REST failure), or the
   loaded view; a "waiting for the first sample" note before telemetry arrives.
+  Delete adds a view-local `confirming` flag plus store-owned `deleting` /
+  `deleteError`.
 - **Form** — prefill `loading`/`load-error` (edit), per-field validation errors,
-  `saving`, save success (navigate), and save failure (message).
+  `saving`, save success (navigate), and save failure (message). Version conflict
+  adds `conflict` (blocks save) plus `reloading` / `reloadError` for reload-latest.
+
+## M7 — concurrency + delete
+
+*(PDF §2 M7: "Editing uses the version field: a stale update returns 409 and the UI
+shows a conflict the user can resolve. Deletes are confirmed. Network and
+validation failures surface as usable messages — never a silent no-op or a console
+error.")*
+
+### Delete flow
+
+```
+LinkDetailView (Delete → Confirm/Cancel, inline signal `confirming`)
+      │ confirm
+      ▼
+LinkDetailStore.deleteLink()   ── owns transport + state (deleting/deleteError)
+      │ FleetApi.delete → DELETE /links/:id
+      ├─ 204  ─► FleetStore.removeLink(id) ─► view navigates to '/'
+      ├─ 404  ─► already gone: prune + navigate (same end state)
+      └─ net/5xx ─► deleteError (readable); stay on page; retry
+```
+
+- **Confirmation** is a view-local `confirming` signal — no dialog component, no
+  global state. Clicking Delete only *arms* the confirm; nothing hits the API until
+  Confirm. The confirm button disables while `deleting` (no duplicate `DELETE`).
+- **State ownership**: the store owns transport + `deleting`/`deleteError`; the view
+  owns confirmation UI and navigation. `deleteLink()` resolves on 204 **and** 404
+  (both mean gone → navigate) and rejects on network/5xx so the view keeps the user
+  on the page to retry.
+- **FleetStore local pruning**: `removeLink(id)` removes just that row (others and
+  the KPI summary untouched); unknown id is a no-op returning the same model
+  reference. No refetch, no new SSE event.
+- **Delete-while-streaming**: after pruning, late `link.telemetry` / `link.status`
+  frames for the deleted id fold to a no-op — `applyEvents` already ignores events
+  for rows absent from the model — so the row is never resurrected and remaining
+  links keep updating. This is the assignment's "no crash on delete-while-streaming"
+  requirement, satisfied without touching the SSE layer.
+
+### 409 / version-conflict resolution *(approved strategy: reload → re-apply → retry)*
+
+```
+edit + Save ─► PATCH { …patch, expectedVersion } ─► 409 VERSION_CONFLICT
+      │                                               details.actualVersion
+      ▼
+conflict banner ("changed elsewhere; server at vN")   ── Save is blocked
+      │ Reload latest
+      ▼
+GET /links/:id ─► re-prefill form + version := latest ─► conflict cleared
+      │ user re-applies their change
+      ▼
+Save ─► PATCH { …patch, expectedVersion: latest } ─► 200 ─► navigate to detail
+```
+
+- **Detection branches on `code === 'VERSION_CONFLICT'`**, not `status === 409`:
+  `DUPLICATE_LINK_NAME` is also 409 but stays an ordinary, readable save error.
+- **Stale-version protection**: while `conflict` is set, `submit()` early-returns and
+  the Save button is disabled — the stale `expectedVersion` can never be resubmitted.
+  Reload updates the stored `version`, so the retry carries the fresh value; the
+  server rejects any further stale attempt.
+- **No merge editor, no auto-overwrite, no silent retry**: the user explicitly
+  reloads the latest state and re-applies their intent. `reloadLatest()` reuses the
+  same field-mapping as `prefill()` (`applyLink`), guards re-entrancy via `reloading`,
+  and on failure keeps the conflict open with a readable `reloadError` so the reload
+  can be retried.
 
 ## Testing
 
