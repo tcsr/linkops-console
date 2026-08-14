@@ -8,7 +8,7 @@ import {
   untracked,
 } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { forkJoin } from 'rxjs';
+import { firstValueFrom, forkJoin } from 'rxjs';
 import type { LinkStatus, TelemetrySample } from '@linkops/domain';
 import { FleetApi } from './fleet-api';
 import { FleetStore } from './fleet-store';
@@ -48,6 +48,8 @@ export class LinkDetailStore {
   private readonly detailState = signal<DetailState>('idle');
   private readonly history = signal<readonly TelemetrySample[]>([]);
   private readonly errorMessage = signal<string | null>(null);
+  private readonly deletingState = signal(false);
+  private readonly deleteErrorMessage = signal<string | null>(null);
 
   /** Current link id under view, or null before the first load. */
   readonly linkId = this.id.asReadonly();
@@ -55,6 +57,10 @@ export class LinkDetailStore {
   readonly link = this.snapshot.asReadonly();
   readonly state = this.detailState.asReadonly();
   readonly error = this.errorMessage.asReadonly();
+  /** True while a delete request is in flight. */
+  readonly deleting = this.deletingState.asReadonly();
+  /** Readable message when a delete fails (null when there is no error). */
+  readonly deleteError = this.deleteErrorMessage.asReadonly();
   /** Live SSE connection state, delegated from the shared fleet stream. */
   readonly connection = this.fleet.connection;
 
@@ -154,5 +160,39 @@ export class LinkDetailStore {
           );
         },
       });
+  }
+
+  /**
+   * Delete the current link (M7). Confirmation and navigation are the view's
+   * responsibility; this store owns only the transport and its state.
+   *
+   * On a successful 204 the row is pruned from the shared {@link FleetStore}
+   * (the M4 stream carries no delete event, so a refetch is unnecessary). A 404
+   * is treated as success — the link is already gone, which is the intended end
+   * state. Any other failure (network, 5xx, unexpected) sets a readable
+   * {@link deleteError} and rejects, so the view can keep the user on the page
+   * to retry rather than navigating away on a silent failure.
+   */
+  async deleteLink(): Promise<void> {
+    const id = this.id();
+    if (id === null || this.deletingState()) {
+      return; // nothing loaded, or a delete is already in flight
+    }
+    this.deletingState.set(true);
+    this.deleteErrorMessage.set(null);
+    try {
+      await firstValueFrom(this.api.delete(id));
+      this.fleet.removeLink(id);
+    } catch (err: unknown) {
+      const parsed = parseApiError(err);
+      if (parsed.status === 404) {
+        this.fleet.removeLink(id); // already gone — treat as success
+        return;
+      }
+      this.deleteErrorMessage.set(parsed.message);
+      throw err;
+    } finally {
+      this.deletingState.set(false);
+    }
   }
 }
