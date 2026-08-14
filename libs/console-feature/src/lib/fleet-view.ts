@@ -6,7 +6,7 @@ import {
   input,
   signal,
 } from '@angular/core';
-import { ActivatedRoute, Router } from '@angular/router';
+import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { FleetStore } from '@linkops/console-data-access';
 import { FleetTable, KpiHeader } from '@linkops/console-ui';
 import {
@@ -31,7 +31,7 @@ import {
 @Component({
   selector: 'app-fleet-view',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [KpiHeader, FleetTable],
+  imports: [KpiHeader, FleetTable, RouterLink],
   host: {
     '(document:click)': 'closeDropdowns()'
   },
@@ -41,9 +41,12 @@ import {
         <h1>Fleet</h1>
         <p class="sub">Live operator console — point-to-point radio links</p>
       </div>
-      <span class="conn" [attr.data-state]="store.connection()">
-        <span class="pip" aria-hidden="true"></span>{{ store.connection() }}
-      </span>
+      <div class="bar-actions">
+        <span class="conn" [attr.data-state]="store.connection()">
+          <span class="pip" aria-hidden="true"></span>{{ store.connection() }}
+        </span>
+        <a class="new-link" routerLink="/links/new">+ New link</a>
+      </div>
     </header>
 
     <lo-kpi-header [summary]="store.summary()" />
@@ -150,7 +153,7 @@ import {
         </div>
       }
       @default {
-        <lo-fleet-table [rows]="rows()" />
+        <lo-fleet-table [rows]="rows()" (rowSelect)="openDetail($event)" />
       }
     }
 
@@ -161,6 +164,18 @@ import {
   styles: `
     :host { display: block; padding: 1rem 1.5rem 2.5rem; max-width: 76rem; margin: 0 auto; }
     .bar { display: flex; align-items: center; justify-content: space-between; gap: 1rem; margin-bottom: 1.15rem; }
+    .bar-actions { display: inline-flex; align-items: center; gap: 0.75rem; }
+    .new-link {
+      display: inline-flex; align-items: center; gap: 0.3rem;
+      font-size: 0.8rem; font-weight: 700; text-decoration: none;
+      color: #fff; background: linear-gradient(135deg, var(--brand), color-mix(in srgb, var(--brand) 70%, #ff9a3d));
+      padding: 0.45rem 0.85rem; border-radius: var(--radius-sm);
+      box-shadow: 0 4px 12px -4px color-mix(in srgb, var(--brand) 60%, transparent);
+      transition: transform 0.2s ease, box-shadow 0.2s ease;
+    }
+    .new-link:hover { transform: translateY(-1px); box-shadow: 0 6px 16px -4px color-mix(in srgb, var(--brand) 70%, transparent); }
+    .new-link:active { transform: translateY(0); }
+    .new-link:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
     h1 {
       margin: 0; font-size: 1.7rem; font-weight: 800; letter-spacing: -0.03em;
       background: linear-gradient(135deg, var(--text), color-mix(in srgb, var(--accent) 80%, var(--brand)));
@@ -469,6 +484,11 @@ export class FleetView {
 
   protected asValue(event: Event): string {
     return (event.target as HTMLInputElement | HTMLSelectElement).value;
+  }
+
+  /** Navigate to a link's detail view. */
+  protected openDetail(id: string): void {
+    void this.router.navigate(['/links', id]);
   }
 
   /** Push a filter change into the URL; defaults are cleared to keep it tidy. */
