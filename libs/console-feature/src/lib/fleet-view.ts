@@ -53,7 +53,7 @@ import {
 
     <div class="filters">
       <label class="field search">
-        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10 4a6 6 0 104.47 10.03l4.75 4.75 1.41-1.41-4.75-4.75A6 6 0 0010 4zm0 2a4 4 0 110 8 4 4 0 010-8z"/></svg>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="search-icon" aria-hidden="true"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
         <input
           type="search"
           placeholder="Search name or site…"
@@ -61,6 +61,11 @@ import {
           (input)="set('q', asValue($event))"
           aria-label="Search links"
         />
+        @if (filter().q) {
+          <button type="button" class="search-clear-btn" (click)="set('q', '')" aria-label="Clear search">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+          </button>
+        }
       </label>
 
       <!-- Status dropdown -->
@@ -225,12 +230,12 @@ import {
       70%, 100% { box-shadow: 0 0 0 8px transparent; }
     }
 
-    .filters { display: flex; gap: 0.6rem; flex-wrap: wrap; margin: 1.15rem 0 1.25rem; }
+    .filters { display: flex; gap: 0.5rem; flex-wrap: wrap; margin: 1rem 0 0.55rem; }
 
     .field {
       display: flex; align-items: center; gap: 0.5rem;
       background: var(--panel); border: 1px solid var(--border);
-      border-radius: var(--radius-sm); padding: 0 0.8rem; height: 2.35rem;
+      border-radius: var(--radius-sm); padding: 0 0.8rem; height: 2.6rem;
       transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
       box-shadow: 0 2px 4px rgba(0, 0, 0, 0.01);
     }
@@ -246,12 +251,54 @@ import {
     }
     .field svg { width: 0.95rem; height: 0.95rem; fill: var(--muted); flex: none; transition: fill 0.2s ease; }
     .field:focus-within svg { fill: var(--accent); }
+    .field svg.search-icon {
+      width: 1.1rem; height: 1.1rem;
+      fill: none;
+      stroke: var(--muted);
+      transition: stroke 0.2s ease, transform 0.2s ease;
+    }
+    .field:focus-within svg.search-icon {
+      fill: none;
+      stroke: var(--accent);
+      transform: scale(1.12);
+    }
     .field input, .field select {
       background: transparent; color: inherit; border: none; outline: none;
       font: inherit; font-size: 0.85rem; height: 100%;
     }
-    .search { min-width: 15rem; flex: 1 1 15rem; }
-    .search input { width: 100%; }
+    .search { min-width: 15rem; flex: 1 1 auto; }
+    .search input {
+      width: 100%;
+      padding-right: 0.5rem;
+    }
+    .search input::-webkit-search-cancel-button {
+      -webkit-appearance: none;
+      appearance: none;
+    }
+    .search-clear-btn {
+      display: inline-flex; align-items: center; justify-content: center;
+      background: none; border: none; padding: 0.25rem; cursor: pointer;
+      color: var(--muted); border-radius: 50%;
+      transition: all 0.15s ease;
+      animation: clear-scale-in 0.2s ease forwards;
+      margin-left: auto;
+      flex-shrink: 0;
+    }
+    .search-clear-btn:hover {
+      color: var(--text);
+      background: color-mix(in srgb, var(--text) 8%, transparent);
+      transform: scale(1.08);
+    }
+    .search-clear-btn:active {
+      transform: scale(0.95);
+    }
+    .search-clear-btn svg {
+      width: 0.9rem; height: 0.9rem;
+      fill: currentColor;
+    }
+    @keyframes clear-scale-in {
+      from { transform: scale(0); opacity: 0; }
+    }
     .custom-select {
       position: relative;
     }

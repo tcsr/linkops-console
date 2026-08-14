@@ -44,6 +44,22 @@ import type { LinkStatus } from '@linkops/domain';
     .badge.up:hover { box-shadow: 0 0 8px color-mix(in srgb, var(--up) 30%, transparent); }
     .badge.degraded:hover { box-shadow: 0 0 8px color-mix(in srgb, var(--degraded) 30%, transparent); }
     .badge.down:hover { box-shadow: 0 0 8px color-mix(in srgb, var(--down) 30%, transparent); }
+
+    .degraded .dot {
+      animation: pulse-degraded 2s infinite ease-in-out;
+    }
+    .down .dot {
+      animation: pulse-down 1.2s infinite ease-in-out;
+    }
+    
+    @keyframes pulse-degraded {
+      0%, 100% { opacity: 0.7; transform: scale(0.9); }
+      50% { opacity: 1; transform: scale(1.1); box-shadow: 0 0 0 4px color-mix(in srgb, var(--degraded) 20%, transparent); }
+    }
+    @keyframes pulse-down {
+      0%, 100% { opacity: 0.6; transform: scale(0.85); }
+      50% { opacity: 1; transform: scale(1.25); box-shadow: 0 0 0 5px color-mix(in srgb, var(--down) 30%, transparent); }
+    }
   `,
 })
 export class StatusBadge {
