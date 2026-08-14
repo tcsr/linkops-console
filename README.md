@@ -5,14 +5,16 @@ telemetry, status derivation, and link management. Built as an Nx workspace with
 strict, enforced architectural boundaries between a framework-independent domain
 core, data-access layers, feature layers, and the two applications (`api`, `console`).
 
-> **Milestone:** M5 — Angular console (fleet view)
+> **Milestone:** M6 — Angular console (link detail + create/edit)
 > **Status:** Implementation complete / pending review
 >
 > The domain, in-memory persistence, the 1 Hz telemetry simulator, a real NestJS
-> REST API, a live SSE stream (`GET /api/stream`), and an **Angular 22 fleet
-> view** (zoneless, signal-first; live status + throughput, KPI header,
-> URL-backed filter/sort) are implemented. Link detail/edit (M6) and
-> concurrency/error UX (M7) are later milestones.
+> REST API, a live SSE stream (`GET /api/stream`), the **Angular 22 fleet view**
+> (zoneless, signal-first; live status + throughput, KPI header, URL-backed
+> filter/sort), and the **M6 link detail view** (live hand-rolled SVG sparkline)
+> plus the **validated create/edit form** (client validation mirrors the server
+> rules) are implemented. Concurrency/error UX — 409 conflict resolution, delete
+> confirmation, rich failure messaging (M7) — is not built yet.
 >
 > **AI usage:** parts of this codebase were implemented with AI assistance
 > (Claude Code) under human direction and review; all commits are authored by the
@@ -68,9 +70,10 @@ npm run dev
 ```
 
 - **API:** http://localhost:3000 — `[linkops-api] … listening on :3000`.
-- **Console:** http://localhost:4200 — the Angular fleet view (the dev server
+- **Console:** http://localhost:4200 — the Angular console (the dev server
   proxies `/links`, `/fleet`, and `/api` to the API, per
-  `apps/console/proxy.conf.json`).
+  `apps/console/proxy.conf.cjs`; its bypass serves the SPA for HTML navigations
+  so client routes like `/links/:id` deep-link and refresh correctly).
 
 A **working first load** at http://localhost:4200: the **KPI header** shows
 **10** seeded links (up/degraded/down counts + avg Mbps), the **list** shows all
@@ -79,6 +82,14 @@ indicator reads **open**, and **throughput values update ~once per second** as
 the simulator streams telemetry. Filtering/sorting (search, status, band, sort,
 order) is reflected in the URL, so a filtered view is shareable and survives
 reload.
+
+**Link detail + edit (M6):** click a link name to open `/links/:id` — its
+configuration, live status, a hand-rolled SVG **throughput sparkline**, and the
+current RSSI/SNR/throughput, updating live over the same SSE stream. **+ New
+link** (`/links/new`) and **Edit** (`/links/:id/edit`) open a validated form
+whose rules mirror the server's; on save it returns to the link's detail. Editing
+carries the link's `version` for optimistic concurrency (the 409 *resolution* UX
+is M7).
 
 Run each separately with `npm run dev:api` and `npm run dev:console`.
 
@@ -195,9 +206,9 @@ other; both may depend on `scope:shared` (the domain).
 | **M2** | Telemetry simulator (1 Hz) | ✅ complete |
 | **M3** | REST API (NestJS controllers, DTOs, validation, error envelope) | ✅ complete |
 | **M4** | Live stream over SSE (backend `GET /api/stream`) | ✅ complete |
-| **M5** | Angular fleet view (live status/throughput, KPI header, URL filter/sort) | ✅ implementation complete / pending review |
-| M6 | Link detail + edit UI | ⏳ not started |
-| M7 | Concurrency / error UX | ⏳ not started |
+| **M5** | Angular fleet view (live status/throughput, KPI header, URL filter/sort) | ✅ complete |
+| **M6** | Link detail (live sparkline) + validated create/edit form | ✅ implementation complete / pending review |
+| M7 | Concurrency / error UX (409 resolution, delete, failure messaging) | ⏳ not started |
 | M8 | Tests beyond current scope | ⏳ not started |
 
 ### Telemetry simulator (M2)
@@ -281,7 +292,26 @@ See [`docs/architecture/telemetry.md`](docs/architecture/telemetry.md).
 - Tests: signal store + state logic + component tests (zoneless
   jest-preset-angular). See [`docs/architecture/console.md`](docs/architecture/console.md).
 
+### Completed in M6 (Angular link detail + edit)
+
+- `console-data-access`: `LinkDetailStore` — per-link REST snapshot + telemetry
+  history, folding **live** telemetry/status by reading the already-coalesced
+  `FleetStore` (no second `EventSource` or scheduler); bounded 60-point series;
+  typed error-envelope parser (`parseApiError`) and REST client methods
+  (`linkById`, `telemetry`, `create`, `update`).
+- `console-ui`: dependency-free hand-rolled **SVG `Sparkline`**; `FleetTable` row
+  selection (router-agnostic `rowSelect`).
+- `console-feature`: `LinkDetailView` (`/links/:id`) and the typed reactive
+  `LinkFormView` (`/links/new`, `/links/:id/edit`) whose validators mirror the
+  shared domain rules; save-in-progress + duplicate-submit guards; edit sends
+  `expectedVersion`.
+- `domain`: shared validation constants (bands/modes/widths + numeric ranges) so
+  client and server validate against one source.
+- Routing with deep-link/refresh support (component-input binding + proxy
+  bypass). Verified end-to-end in the browser (fleet → detail → history +
+  sparkline → edit → save → updated state).
+
 ### Not yet implemented
 
-- M6 link detail + edit UI · M7 concurrency & 409 / error UX
+- M7 concurrency & 409 conflict-resolution UX, delete confirmation, error UX
 - MongoDB, Docker/K8s, and all other later concerns
