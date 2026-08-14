@@ -5,8 +5,9 @@ import {
   effect,
   inject,
   input,
+  signal,
 } from '@angular/core';
-import { RouterLink } from '@angular/router';
+import { Router, RouterLink } from '@angular/router';
 import { LinkDetailStore } from '@linkops/console-data-access';
 import { StatusBadge, Sparkline } from '@linkops/console-ui';
 
@@ -58,8 +59,38 @@ import { StatusBadge, Sparkline } from '@linkops/console-ui';
                 <lo-status-badge [status]="s" />
               }
               <a class="edit" [routerLink]="['/links', l.id, 'edit']">Edit</a>
+              @if (confirmingDelete()) {
+                <span class="confirm" role="group" aria-label="Confirm delete">
+                  <span class="confirm-q">Delete this link?</span>
+                  <button
+                    type="button"
+                    class="btn-del confirm-yes"
+                    (click)="confirmDelete()"
+                    [disabled]="deleting()"
+                  >
+                    {{ deleting() ? 'Deleting…' : 'Confirm' }}
+                  </button>
+                  <button
+                    type="button"
+                    class="btn-del confirm-no"
+                    (click)="cancelDelete()"
+                    [disabled]="deleting()"
+                  >
+                    Cancel
+                  </button>
+                </span>
+              } @else {
+                <button type="button" class="del" (click)="startDelete()">Delete</button>
+              }
             </div>
           </header>
+
+          @if (deleteError(); as e) {
+            <div class="msg error del-error" role="alert">
+              <strong>Delete failed.</strong>
+              <span>{{ e }}</span>
+            </div>
+          }
 
           <section class="attrs" aria-label="Link configuration">
             <div class="attr"><span class="k">Band</span><span class="v">{{ l.band }}</span></div>
@@ -140,6 +171,42 @@ import { StatusBadge, Sparkline } from '@linkops/console-ui';
     .edit:hover { background: color-mix(in srgb, var(--accent) 18%, transparent); transform: translateY(-1px); }
     .edit:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
+    /* Destructive delete action + inline confirmation (M7). */
+    .del, .btn-del {
+      font: inherit; font-size: 0.8rem; font-weight: 700; cursor: pointer;
+      padding: 0.4rem 0.85rem; border-radius: var(--radius-sm);
+      transition: all 0.2s ease;
+    }
+    .del {
+      color: var(--down); background: color-mix(in srgb, var(--down) 8%, transparent);
+      border: 1px solid color-mix(in srgb, var(--down) 25%, transparent);
+    }
+    .del:hover { background: color-mix(in srgb, var(--down) 15%, transparent); transform: translateY(-1px); }
+    .confirm { display: inline-flex; align-items: center; gap: 0.5rem; }
+    .confirm-q { font-size: 0.78rem; font-weight: 700; color: var(--down); }
+    .confirm-yes {
+      color: #fff; border: 1px solid transparent;
+      background: linear-gradient(135deg, var(--down), color-mix(in srgb, var(--down) 75%, #000));
+    }
+    .confirm-yes:hover:not(:disabled) { transform: translateY(-1px); }
+    .confirm-no {
+      color: var(--muted); background: var(--panel-2); border: 1px solid var(--border);
+    }
+    .confirm-no:hover:not(:disabled) { color: var(--text); border-color: var(--border-strong); }
+    .btn-del:disabled { opacity: 0.6; cursor: progress; }
+    .del:focus-visible, .btn-del:focus-visible { outline: 2px solid var(--down); outline-offset: 2px; }
+
+    /* Compact inline error banner for a failed delete (distinct from the large
+       load-failure empty state that reuses .msg). */
+    .del-error {
+      flex-direction: row; align-items: baseline; gap: 0.5rem; text-align: left;
+      padding: 0.75rem 1rem; margin-bottom: 1.25rem;
+      border: 1px solid color-mix(in srgb, var(--down) 30%, transparent);
+      background: color-mix(in srgb, var(--down) 5%, var(--panel-2));
+    }
+    .del-error strong { color: var(--down); font-size: 0.9rem; }
+    .del-error span { color: var(--muted); font-size: 0.85rem; }
+
     .attrs {
       display: grid; grid-template-columns: repeat(auto-fit, minmax(7rem, 1fr)); gap: 0.75rem;
       background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius);
@@ -211,6 +278,7 @@ import { StatusBadge, Sparkline } from '@linkops/console-ui';
 })
 export class LinkDetailView {
   protected readonly store = inject(LinkDetailStore);
+  private readonly router = inject(Router);
 
   /** Route param `:id`, bound via router component-input binding. */
   readonly id = input.required<string>();
@@ -218,6 +286,12 @@ export class LinkDetailView {
   protected readonly link = this.store.link;
   protected readonly sample = this.store.latestSample;
   protected readonly connection = this.store.connection;
+
+  /** Inline delete-confirmation flag (view-local; no global state). */
+  protected readonly confirmingDelete = signal(false);
+  /** Delete lifecycle delegated from the store (transport/state owner). */
+  protected readonly deleting = this.store.deleting;
+  protected readonly deleteError = this.store.deleteError;
 
   /** Throughput values for the sparkline (oldest → newest). */
   protected readonly throughputSeries = computed<number[]>(() =>
@@ -237,5 +311,35 @@ export class LinkDetailView {
         this.store.load(id);
       }
     });
+  }
+
+  /** Enter the inline confirmation state. Does not touch the API. */
+  protected startDelete(): void {
+    this.confirmingDelete.set(true);
+  }
+
+  /** Leave the confirmation state without deleting. Does not touch the API. */
+  protected cancelDelete(): void {
+    this.confirmingDelete.set(false);
+  }
+
+  /**
+   * Confirm the delete. Transport/state live in the store; the view owns only
+   * the navigation on completion. `deleteLink()` resolves on a real 204 **and**
+   * on a 404 (already gone) — both mean the link is gone, so navigate to the
+   * fleet in either case. A rejection (network/5xx/unknown) keeps the user here
+   * with the store's `deleteError` shown; the confirmation stays open so they
+   * can retry or cancel.
+   */
+  protected async confirmDelete(): Promise<void> {
+    if (this.deleting()) {
+      return; // guard against a double confirm while in flight
+    }
+    try {
+      await this.store.deleteLink();
+      void this.router.navigate(['/']);
+    } catch {
+      // Failure already surfaced via store.deleteError(); stay for retry.
+    }
   }
 }

@@ -4,11 +4,12 @@ import {
   HttpTestingController,
   provideHttpClientTesting,
 } from '@angular/common/http/testing';
-import { ActivatedRoute, provideRouter } from '@angular/router';
+import { ActivatedRoute, provideRouter, Router } from '@angular/router';
 import { linkId, type FleetSummary, type TelemetrySample } from '@linkops/domain';
 import {
   EVENT_SOURCE_FACTORY,
   FRAME_SCHEDULER,
+  LinkDetailStore,
   type FleetLinkView,
   type FrameScheduler,
 } from '@linkops/console-data-access';
@@ -135,5 +136,170 @@ describe('LinkDetailView', () => {
     expect((fixture.nativeElement as HTMLElement).textContent).toContain(
       'Link not found',
     );
+  });
+
+  describe('delete confirmation UX (M7)', () => {
+    /** Bring a fixture to the loaded/default state so the header renders. */
+    function loadDetail(id = 'link-1') {
+      const fixture = setup(id);
+      flushFleet();
+      http.expectOne(`/links/${id}`).flush(view(id));
+      http.expectOne(`/links/${id}/telemetry`).flush({
+        linkId: id,
+        windowMs: 300000,
+        count: 0,
+        samples: [],
+      });
+      fixture.detectChanges();
+      return fixture;
+    }
+
+    const el = (fixture: { nativeElement: unknown }) =>
+      fixture.nativeElement as HTMLElement;
+    const q = (fixture: { nativeElement: unknown }, sel: string) =>
+      el(fixture).querySelector(sel) as HTMLElement | null;
+    const deleteReqs = () => http.match((r) => r.method === 'DELETE');
+    // Zoneless: fixture.whenStable() does not await our promise chain, so drain
+    // the microtask queue via a macrotask boundary for deterministic assertions.
+    const tick = () => new Promise<void>((resolve) => setTimeout(resolve, 0));
+
+    it('renders a Delete action in the header', () => {
+      const fixture = loadDetail();
+      expect(q(fixture, '.del')).not.toBeNull();
+      expect(q(fixture, '.del')?.textContent).toContain('Delete');
+    });
+
+    it('clicking Delete enters the confirmation state without calling the store', () => {
+      const fixture = loadDetail();
+      const spy = jest.spyOn(TestBed.inject(LinkDetailStore), 'deleteLink');
+
+      q(fixture, '.del')?.click();
+      fixture.detectChanges();
+
+      expect(q(fixture, '.confirm-yes')).not.toBeNull();
+      expect(q(fixture, '.confirm-no')).not.toBeNull();
+      expect(q(fixture, '.del')).toBeNull(); // Delete swapped for confirm controls
+      expect(spy).not.toHaveBeenCalled();
+    });
+
+    it('clicking Cancel exits confirmation without calling the store', () => {
+      const fixture = loadDetail();
+      const spy = jest.spyOn(TestBed.inject(LinkDetailStore), 'deleteLink');
+
+      q(fixture, '.del')?.click();
+      fixture.detectChanges();
+      q(fixture, '.confirm-no')?.click();
+      fixture.detectChanges();
+
+      expect(q(fixture, '.del')).not.toBeNull(); // back to normal
+      expect(q(fixture, '.confirm-yes')).toBeNull();
+      expect(spy).not.toHaveBeenCalled();
+    });
+
+    it('clicking Confirm calls deleteLink and navigates to / on success', async () => {
+      const fixture = loadDetail();
+      const router = TestBed.inject(Router);
+      const nav = jest.spyOn(router, 'navigate').mockResolvedValue(true);
+      const del = jest.spyOn(TestBed.inject(LinkDetailStore), 'deleteLink');
+
+      q(fixture, '.del')?.click();
+      fixture.detectChanges();
+      q(fixture, '.confirm-yes')?.click();
+
+      expect(del).toHaveBeenCalledTimes(1);
+      // in-flight: deleting state disables the confirm button
+      fixture.detectChanges();
+      expect((q(fixture, '.confirm-yes') as HTMLButtonElement).disabled).toBe(true);
+
+      http.expectOne((r) => r.method === 'DELETE' && r.url === '/links/link-1')
+        .flush(null, { status: 204, statusText: 'No Content' });
+      await tick();
+
+      expect(nav).toHaveBeenCalledWith(['/']);
+    });
+
+    it('prevents a duplicate DELETE while one is in flight', async () => {
+      const fixture = loadDetail();
+      jest.spyOn(TestBed.inject(Router), 'navigate').mockResolvedValue(true);
+
+      q(fixture, '.del')?.click();
+      fixture.detectChanges();
+      // Two confirms back-to-back; the second must be a no-op (guard + disabled).
+      q(fixture, '.confirm-yes')?.click();
+      q(fixture, '.confirm-yes')?.click();
+
+      const reqs = deleteReqs();
+      expect(reqs).toHaveLength(1);
+      reqs[0].flush(null, { status: 204, statusText: 'No Content' });
+      await tick();
+    });
+
+    it('navigates to / when the link was already gone (store resolves on 404)', async () => {
+      const fixture = loadDetail();
+      const nav = jest.spyOn(TestBed.inject(Router), 'navigate').mockResolvedValue(true);
+
+      q(fixture, '.del')?.click();
+      fixture.detectChanges();
+      q(fixture, '.confirm-yes')?.click();
+
+      http.expectOne((r) => r.method === 'DELETE').flush(
+        { error: { code: 'LINK_NOT_FOUND', message: 'Unknown link' } },
+        { status: 404, statusText: 'Not Found' },
+      );
+      await tick();
+
+      expect(nav).toHaveBeenCalledWith(['/']);
+    });
+
+    it('stays on the page and renders a readable error on delete failure', async () => {
+      const fixture = loadDetail();
+      const nav = jest.spyOn(TestBed.inject(Router), 'navigate').mockResolvedValue(true);
+
+      q(fixture, '.del')?.click();
+      fixture.detectChanges();
+      q(fixture, '.confirm-yes')?.click();
+
+      http.expectOne((r) => r.method === 'DELETE').flush(
+        { error: { code: 'INTERNAL', message: 'Internal server error' } },
+        { status: 500, statusText: 'Server Error' },
+      );
+      await tick();
+      fixture.detectChanges();
+
+      expect(nav).not.toHaveBeenCalled();
+      const text = el(fixture).textContent ?? '';
+      expect(text).toContain('Delete failed.');
+      expect(text).toContain('Internal server error');
+      expect(text).not.toContain('HttpErrorResponse');
+      // confirmation stays open so the user can retry
+      expect(q(fixture, '.confirm-yes')).not.toBeNull();
+    });
+
+    it('allows a retry after a failure', async () => {
+      const fixture = loadDetail();
+      const nav = jest.spyOn(TestBed.inject(Router), 'navigate').mockResolvedValue(true);
+
+      q(fixture, '.del')?.click();
+      fixture.detectChanges();
+
+      // First attempt fails.
+      q(fixture, '.confirm-yes')?.click();
+      http.expectOne((r) => r.method === 'DELETE').flush(
+        { error: { code: 'INTERNAL', message: 'Internal server error' } },
+        { status: 500, statusText: 'Server Error' },
+      );
+      await tick();
+      fixture.detectChanges();
+
+      // Retry succeeds.
+      q(fixture, '.confirm-yes')?.click();
+      http.expectOne((r) => r.method === 'DELETE').flush(null, {
+        status: 204,
+        statusText: 'No Content',
+      });
+      await tick();
+
+      expect(nav).toHaveBeenCalledWith(['/']);
+    });
   });
 });
