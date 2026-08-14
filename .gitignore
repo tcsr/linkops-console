@@ -55,3 +55,8 @@ test-output
 
 # TypeScript incremental build info
 *.tsbuildinfo
+
+# Local environment variables (.env.example is committed as the template)
+.env
+.env.local
+.env.*.local
