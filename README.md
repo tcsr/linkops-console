@@ -5,16 +5,18 @@ telemetry, status derivation, and link management. Built as an Nx workspace with
 strict, enforced architectural boundaries between a framework-independent domain
 core, data-access layers, feature layers, and the two applications (`api`, `console`).
 
-> **Milestone:** M6 — Angular console (link detail + create/edit)
+> **Milestone:** M7 — Concurrency + error handling (delete, 409 resolution)
 > **Status:** Implementation complete / pending review
 >
 > The domain, in-memory persistence, the 1 Hz telemetry simulator, a real NestJS
 > REST API, a live SSE stream (`GET /api/stream`), the **Angular 22 fleet view**
 > (zoneless, signal-first; live status + throughput, KPI header, URL-backed
-> filter/sort), and the **M6 link detail view** (live hand-rolled SVG sparkline)
+> filter/sort), the **M6 link detail view** (live hand-rolled SVG sparkline)
 > plus the **validated create/edit form** (client validation mirrors the server
-> rules) are implemented. Concurrency/error UX — 409 conflict resolution, delete
-> confirmation, rich failure messaging (M7) — is not built yet.
+> rules), and the **M7 concurrency/error UX** — inline **delete confirmation**,
+> optimistic-concurrency **409 conflict resolution** (reload-latest → re-apply →
+> retry), and readable failure messaging across delete/save/reload — are
+> implemented.
 >
 > **AI usage:** parts of this codebase were implemented with AI assistance
 > (Claude Code) under human direction and review; all commits are authored by the
@@ -88,8 +90,16 @@ configuration, live status, a hand-rolled SVG **throughput sparkline**, and the
 current RSSI/SNR/throughput, updating live over the same SSE stream. **+ New
 link** (`/links/new`) and **Edit** (`/links/:id/edit`) open a validated form
 whose rules mirror the server's; on save it returns to the link's detail. Editing
-carries the link's `version` for optimistic concurrency (the 409 *resolution* UX
-is M7).
+carries the link's `version` for optimistic concurrency.
+
+**Delete + conflict handling (M7):** the detail view has an inline **Delete** →
+**Confirm/Cancel** flow; a confirmed delete removes the link (`DELETE` → 204),
+prunes it from the live fleet, and returns to the fleet. If the edited link was
+changed elsewhere, the save returns **409 `VERSION_CONFLICT`** and the form shows
+a conflict banner with **Reload latest** — load the current server state, re-apply
+your change, and Save again (the retry carries the fresh `expectedVersion`). A
+stale save is blocked until you reload. Delete/save/reload failures (network, 404,
+5xx) surface as readable messages, never a silent no-op or a bare console error.
 
 Run each separately with `npm run dev:api` and `npm run dev:console`.
 
@@ -105,7 +115,7 @@ through the Nest lifecycle (simulator timer stopped, app closed) — no abrupt
 | `GET /links/:id` | Single link view. |
 | `POST /links` | Create (201). |
 | `PATCH /links/:id` | Partial update; body requires `expectedVersion` (optimistic concurrency). |
-| `DELETE /links/:id` | Delete (204). |
+| `DELETE /links/:id` | Delete (204); **404** if unknown. No version parameter, so it never returns the optimistic-concurrency 409. |
 | `GET /links/:id/telemetry?windowMs=` | Telemetry window from the ring buffer (default 5 min). |
 | `GET /fleet/summary` | Domain `FleetSummary` (counts, avg throughput, worst link). |
 
@@ -207,8 +217,8 @@ other; both may depend on `scope:shared` (the domain).
 | **M3** | REST API (NestJS controllers, DTOs, validation, error envelope) | ✅ complete |
 | **M4** | Live stream over SSE (backend `GET /api/stream`) | ✅ complete |
 | **M5** | Angular fleet view (live status/throughput, KPI header, URL filter/sort) | ✅ complete |
-| **M6** | Link detail (live sparkline) + validated create/edit form | ✅ implementation complete / pending review |
-| M7 | Concurrency / error UX (409 resolution, delete, failure messaging) | ⏳ not started |
+| **M6** | Link detail (live sparkline) + validated create/edit form | ✅ complete |
+| **M7** | Concurrency / error UX (409 resolution, delete confirmation, failure messaging) | ✅ implementation complete / pending review |
 | M8 | Tests beyond current scope | ⏳ not started |
 
 ### Telemetry simulator (M2)
@@ -311,7 +321,27 @@ See [`docs/architecture/telemetry.md`](docs/architecture/telemetry.md).
   bypass). Verified end-to-end in the browser (fleet → detail → history +
   sparkline → edit → save → updated state).
 
+### Completed in M7 (concurrency + error handling)
+
+- `console-data-access`: `FleetApi.delete` (`DELETE /links/:id`), `FleetStore.removeLink`
+  (local row pruning — the M4 stream carries no `link.deleted` event, so a deleting
+  client prunes the row instead of refetching), and `LinkDetailStore.deleteLink`
+  (owns transport/state: `deleting`/`deleteError`; 404 treated as already-gone).
+- `console-feature`: inline **delete confirmation** in `LinkDetailView` (Delete →
+  Confirm/Cancel; deleting state disables the confirm; navigation to the fleet on
+  success — the store already pruned the row). **409 `VERSION_CONFLICT`** resolution
+  in `LinkFormView`: conflict banner + **Reload latest** (re-prefill + fresh
+  `version`), stale-save blocked, explicit retry with the new `expectedVersion`;
+  `DUPLICATE_LINK_NAME` (also 409) stays an ordinary save error.
+- Readable failure messaging across delete/save/reload (network, 404, 5xx) via the
+  shared `parseApiError` — no new backend contract, no SSE change.
+- **Delete-while-streaming** safety: a pruned row is not resurrected by late SSE
+  frames (`applyEvents` ignores events for absent rows); remaining links keep
+  updating live. Verified in the browser with a real two-tab 409 and a live delete.
+- Store/view/API unit tests across the delete transport, confirmation UX, and 409
+  resolution flow. Full design: [`docs/architecture/console.md`](docs/architecture/console.md).
+
 ### Not yet implemented
 
-- M7 concurrency & 409 conflict-resolution UX, delete confirmation, error UX
 - MongoDB, Docker/K8s, and all other later concerns
+- Bonus items B2/B2a (A2UI), B4 (Module Federation), B5 (perf budgets)

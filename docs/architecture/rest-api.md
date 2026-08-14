@@ -77,7 +77,14 @@ name) — never for ordinary validation errors.
 
 `PATCH /links/:id` requires `expectedVersion` in the body. The service forwards it
 to `repository.update(id, patch, expectedVersion)`; a mismatch throws
-`VersionConflictError` → 409 and the stored entity is left untouched.
+`VersionConflictError` → 409 `VERSION_CONFLICT` (with `expectedVersion` /
+`actualVersion` in `details`) and the stored entity is left untouched.
+
+`DELETE /links/:id` takes **no** version parameter: it returns **204** on success
+and **404** `LINK_NOT_FOUND` for an unknown id. It therefore never produces the
+optimistic-concurrency 409 — a delete is unconditional, so there is no stale-version
+class to detect. Optimistic concurrency applies to `PATCH` only. (The M7 console
+consumes this contract as-is; it does not add DELETE-conflict handling.)
 
 ## Telemetry simulator lifecycle (NestJS)
 
