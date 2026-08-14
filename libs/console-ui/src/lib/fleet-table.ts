@@ -22,8 +22,12 @@ import type { FleetRow } from './fleet-row';
       <table>
         <thead>
           <tr>
-            <th>Name</th><th>Sites</th><th>Band</th><th>Status</th>
-            <th class="num">Throughput</th><th class="num">Capacity</th>
+            <th style="width: 24%">Name</th>
+            <th style="width: 26%">Sites</th>
+            <th style="width: 10%">Band</th>
+            <th style="width: 12%">Status</th>
+            <th class="num" style="width: 18%">Throughput</th>
+            <th class="num" style="width: 10%">Capacity</th>
           </tr>
         </thead>
         <tbody>
@@ -79,7 +83,7 @@ import type { FleetRow } from './fleet-row';
       background: var(--panel-2);
       font-size: 0.72rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em;
       color: var(--muted);
-      text-align: left; padding: 0.9rem 1.25rem; white-space: nowrap;
+      text-align: left; padding: 0.75rem 1.25rem; white-space: nowrap;
       border-bottom: 1px solid color-mix(in srgb, var(--border) 80%, transparent);
       z-index: 10;
     }
@@ -88,7 +92,7 @@ import type { FleetRow } from './fleet-row';
     /* keep numeric headers aligned with their columns (out-specifies thead th) */
     thead th.num { text-align: right; }
     tbody td { 
-      padding: 0.9rem 1.25rem; 
+      padding: 0.625rem 1.25rem; 
       border-bottom: 1px solid color-mix(in srgb, var(--border) 40%, transparent); 
       transition: box-shadow 0.2s ease;
     }
@@ -146,7 +150,7 @@ import type { FleetRow } from './fleet-row';
       background: linear-gradient(90deg, color-mix(in srgb, var(--down) 80%, white), var(--down)); 
       box-shadow: 0 0 6px var(--down);
     }
-    .mbps { min-width: 4rem; text-align: right; font-weight: 700; color: var(--text); }
+    .mbps { display: inline-block; min-width: 4.2rem; text-align: right; font-weight: 700; color: var(--text); }
     .cap { color: var(--muted); font-weight: 600; }
     .dash { color: var(--faint); }
     .empty { text-align: center; color: var(--muted); padding: 3rem 1.25rem; font-weight: 500; }

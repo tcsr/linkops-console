@@ -34,22 +34,23 @@ import type { FleetSummary } from '@linkops/domain';
       position: relative;
       display: flex;
       flex-direction: column;
-      gap: 0.15rem;
-      padding: 0.65rem 1rem 0.65rem 1.25rem;
+      gap: 0.25rem;
+      padding: 0.85rem 1.1rem 0.85rem 1.45rem;
       border-radius: var(--radius-sm);
-      background: linear-gradient(180deg, var(--panel), var(--panel-2));
-      border: 1px solid color-mix(in srgb, var(--border) 60%, transparent);
+      background: color-mix(in srgb, var(--panel) 75%, transparent);
+      backdrop-filter: blur(12px);
+      border: 1px solid color-mix(in srgb, var(--border) 50%, transparent);
       box-shadow: var(--shadow);
       overflow: hidden;
-      transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1), 
-                  box-shadow 0.3s ease, 
-                  border-color 0.3s ease,
-                  background 0.3s ease;
+      transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1), 
+                  box-shadow 0.25s ease, 
+                  border-color 0.25s ease,
+                  background 0.25s ease;
       animation: slide-in 0.5s cubic-bezier(0.16, 1, 0.3, 1) both;
     }
     
     @keyframes slide-in {
-      0% { transform: translateY(16px); opacity: 0; }
+      0% { transform: translateY(12px); opacity: 0; }
       100% { transform: translateY(0); opacity: 1; }
     }
     
@@ -74,30 +75,34 @@ import type { FleetSummary } from '@linkops/domain';
     .tile::before {
       content: '';
       position: absolute;
-      left: 8px;
+      left: 10px;
       top: 22%;
       height: 56%;
-      width: 3.5px;
+      width: 3px;
       background: var(--faint);
       border-radius: 99px;
       z-index: 2;
     }
     
-    /* Specific radial background glows */
+    /* Specific glassmorphic background glows and borders */
     .tile {
-      background: radial-gradient(circle at 80% 20%, rgba(148, 163, 184, 0.03) 0%, transparent 60%), linear-gradient(180deg, var(--panel), var(--panel-2));
+      background: radial-gradient(circle at 80% 20%, rgba(148, 163, 184, 0.02) 0%, transparent 60%), color-mix(in srgb, var(--panel) 75%, transparent);
     }
     .tile.up { 
-      background: radial-gradient(circle at 80% 20%, color-mix(in srgb, var(--up) 8%, transparent) 0%, transparent 70%), linear-gradient(180deg, var(--panel), var(--panel-2)); 
+      border-color: color-mix(in srgb, var(--up) 22%, transparent);
+      background: radial-gradient(circle at 80% 20%, color-mix(in srgb, var(--up) 6%, transparent) 0%, transparent 70%), color-mix(in srgb, var(--panel) 75%, transparent); 
     }
     .tile.degraded { 
-      background: radial-gradient(circle at 80% 20%, color-mix(in srgb, var(--degraded) 8%, transparent) 0%, transparent 70%), linear-gradient(180deg, var(--panel), var(--panel-2)); 
+      border-color: color-mix(in srgb, var(--degraded) 22%, transparent);
+      background: radial-gradient(circle at 80% 20%, color-mix(in srgb, var(--degraded) 6%, transparent) 0%, transparent 70%), color-mix(in srgb, var(--panel) 75%, transparent); 
     }
     .tile.down { 
-      background: radial-gradient(circle at 80% 20%, color-mix(in srgb, var(--down) 8%, transparent) 0%, transparent 70%), linear-gradient(180deg, var(--panel), var(--panel-2)); 
+      border-color: color-mix(in srgb, var(--down) 22%, transparent);
+      background: radial-gradient(circle at 80% 20%, color-mix(in srgb, var(--down) 6%, transparent) 0%, transparent 70%), color-mix(in srgb, var(--panel) 75%, transparent); 
     }
     .tile.wide { 
-      background: radial-gradient(circle at 80% 20%, color-mix(in srgb, var(--accent) 8%, transparent) 0%, transparent 70%), linear-gradient(180deg, var(--panel), var(--panel-2)); 
+      border-color: color-mix(in srgb, var(--accent) 22%, transparent);
+      background: radial-gradient(circle at 80% 20%, color-mix(in srgb, var(--accent) 6%, transparent) 0%, transparent 70%), color-mix(in srgb, var(--panel) 75%, transparent); 
     }
 
     .tile.up::before { background: var(--up); }
@@ -107,30 +112,30 @@ import type { FleetSummary } from '@linkops/domain';
 
     /* Hover effects with colored glows and lift */
     .tile:hover {
-      transform: translateY(-5px) scale(1.015);
+      transform: translateY(-2px) scale(1.005);
     }
     .tile:hover::after {
       opacity: 0.055;
     }
     .tile:not(.up):not(.degraded):not(.down):not(.wide):hover {
-      box-shadow: 0 16px 32px -12px rgba(0, 0, 0, 0.15), var(--shadow);
+      box-shadow: 0 10px 24px -8px rgba(0, 0, 0, 0.12), var(--shadow);
       border-color: var(--border-strong);
     }
     .tile.up:hover {
       box-shadow: var(--glow-up), var(--shadow);
-      border-color: color-mix(in srgb, var(--up) 50%, transparent);
+      border-color: color-mix(in srgb, var(--up) 60%, transparent);
     }
     .tile.degraded:hover {
       box-shadow: var(--glow-degraded), var(--shadow);
-      border-color: color-mix(in srgb, var(--degraded) 50%, transparent);
+      border-color: color-mix(in srgb, var(--degraded) 60%, transparent);
     }
     .tile.down:hover {
       box-shadow: var(--glow-down), var(--shadow);
-      border-color: color-mix(in srgb, var(--down) 50%, transparent);
+      border-color: color-mix(in srgb, var(--down) 60%, transparent);
     }
     .tile.wide:hover {
       box-shadow: var(--glow-accent), var(--shadow);
-      border-color: color-mix(in srgb, var(--accent) 50%, transparent);
+      border-color: color-mix(in srgb, var(--accent) 60%, transparent);
     }
 
     .v {
@@ -141,21 +146,21 @@ import type { FleetSummary } from '@linkops/domain';
       letter-spacing: -0.04em;
       font-variant-numeric: tabular-nums;
       z-index: 2;
-      transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
+      transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1);
     }
     .tile:hover .v {
-      transform: scale(1.06) translateX(2px);
+      transform: scale(1.03) translateX(1px);
     }
     .v small { font-size: 0.7rem; font-weight: 700; color: var(--muted); margin-left: 0.3rem; }
-    .k { font-size: 0.65rem; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: 0.08em; z-index: 2; }
+    .k { font-size: 0.6rem; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: 0.1em; z-index: 2; }
     .v { color: var(--text); }
-    .up .v { color: var(--up); text-shadow: 0 0 12px color-mix(in srgb, var(--up) 25%, transparent); }
-    .degraded .v { color: var(--degraded); text-shadow: 0 0 12px color-mix(in srgb, var(--degraded) 25%, transparent); }
-    .down .v { color: var(--down); text-shadow: 0 0 12px color-mix(in srgb, var(--down) 25%, transparent); }
-    .wide .v { color: var(--accent); text-shadow: 0 0 12px color-mix(in srgb, var(--accent) 25%, transparent); }
+    .up .v { color: var(--up); }
+    .degraded .v { color: var(--degraded); }
+    .down .v { color: var(--down); }
+    .wide .v { color: var(--accent); }
     
     .skeleton { 
-      height: 3.8rem; 
+      height: 4.15rem; 
       opacity: 0.6; 
       background: linear-gradient(90deg, var(--panel) 25%, var(--panel-2) 50%, var(--panel) 75%);
       background-size: 200% 100%;
