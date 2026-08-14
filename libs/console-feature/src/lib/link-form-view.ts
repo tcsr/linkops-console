@@ -28,6 +28,7 @@ import {
   FleetApi,
   parseApiError,
   type CreateLinkPayload,
+  type FleetLinkView,
   type UpdateLinkPayload,
 } from '@linkops/console-data-access';
 
@@ -148,7 +149,28 @@ type FormFieldName =
             </label>
           </div>
 
-          @if (saveError()) {
+          @if (conflict(); as c) {
+            <div class="msg conflict" role="alert">
+              <strong>This link was changed elsewhere.</strong>
+              <span>
+                Your form now holds stale data{{ c.actualVersion !== null ? ' — the server is at v' + c.actualVersion : '' }}.
+                Reload the latest version before saving, then re-apply your changes.
+              </span>
+              @if (reloadError(); as re) {
+                <span class="err">Reload failed: {{ re }}</span>
+              }
+              <div class="conflict-actions">
+                <button
+                  type="button"
+                  class="btn primary"
+                  (click)="reloadLatest()"
+                  [disabled]="reloading()"
+                >
+                  {{ reloading() ? 'Reloading…' : 'Reload latest' }}
+                </button>
+              </div>
+            </div>
+          } @else if (saveError()) {
             <div class="msg error" role="alert">
               <strong>Save failed.</strong>
               <span>{{ saveError() }}</span>
@@ -157,7 +179,11 @@ type FormFieldName =
 
           <div class="actions">
             <a class="btn ghost" [routerLink]="backLink()">Cancel</a>
-            <button class="btn primary" type="submit" [disabled]="saving()">
+            <button
+              class="btn primary"
+              type="submit"
+              [disabled]="saving() || conflict() !== null"
+            >
               {{ saving() ? 'Saving…' : (isEdit() ? 'Save changes' : 'Create link') }}
             </button>
           </div>
@@ -210,6 +236,14 @@ type FormFieldName =
     .msg { margin-top: 1.25rem; display: flex; flex-direction: column; gap: 0.35rem; padding: 0.9rem 1.1rem; border-radius: var(--radius-sm); font-size: 0.85rem; }
     .msg.error { color: var(--down); border: 1px solid color-mix(in srgb, var(--down) 30%, transparent); background: color-mix(in srgb, var(--down) 5%, var(--panel-2)); }
     .msg strong { font-weight: 700; }
+    /* Version-conflict banner (M7): warning tone, distinct from a hard error. */
+    .msg.conflict {
+      color: var(--text);
+      border: 1px solid color-mix(in srgb, var(--degraded) 45%, var(--border));
+      background: color-mix(in srgb, var(--degraded) 8%, var(--panel-2));
+    }
+    .msg.conflict strong { color: var(--degraded); }
+    .conflict-actions { margin-top: 0.5rem; }
 
     .skeleton { height: 12rem; border-radius: var(--radius); border: 1px solid var(--border);
       background: linear-gradient(90deg, var(--panel) 25%, var(--panel-2) 50%, var(--panel) 75%);
@@ -234,6 +268,20 @@ export class LinkFormView {
   protected readonly loadError = signal<string | null>(null);
   protected readonly saving = signal(false);
   protected readonly saveError = signal<string | null>(null);
+
+  /**
+   * Optimistic-concurrency conflict (M7). Set only when a PATCH returns
+   * `409 VERSION_CONFLICT` (never `DUPLICATE_LINK_NAME`, which stays a normal
+   * save error). While set, the form holds stale data and Save is blocked — the
+   * user must reload the latest server state before continuing.
+   */
+  protected readonly conflict = signal<{ actualVersion: number | null } | null>(
+    null,
+  );
+  /** True while "Reload latest" is fetching the current server state. */
+  protected readonly reloading = signal(false);
+  /** Readable message when a reload-latest fetch fails (conflict stays open). */
+  protected readonly reloadError = signal<string | null>(null);
 
   /** Loaded version for optimistic concurrency (edit only). */
   private readonly version = signal<number | null>(null);
@@ -311,17 +359,7 @@ export class LinkFormView {
           if (this.id() !== id) {
             return;
           }
-          this.version.set(link.version);
-          this.form.setValue({
-            name: link.name,
-            siteA: link.siteA,
-            siteB: link.siteB,
-            band: link.band,
-            mode: link.mode,
-            channelWidthMhz: link.channelWidthMhz,
-            capacityMbps: link.capacityMbps,
-            txPowerDbm: link.txPowerDbm,
-          });
+          this.applyLink(link);
           this.state.set('ready');
         },
         error: (err: unknown) => {
@@ -334,6 +372,59 @@ export class LinkFormView {
       });
   }
 
+  /** Populate the form and capture the version from a server link snapshot. */
+  private applyLink(link: FleetLinkView): void {
+    this.version.set(link.version);
+    this.form.setValue({
+      name: link.name,
+      siteA: link.siteA,
+      siteB: link.siteB,
+      band: link.band,
+      mode: link.mode,
+      channelWidthMhz: link.channelWidthMhz,
+      capacityMbps: link.capacityMbps,
+      txPowerDbm: link.txPowerDbm,
+    });
+  }
+
+  /**
+   * Resolve a version conflict by loading the latest server state (M7). Fetches
+   * the current link, re-prefills the form and updates the stored version, then
+   * clears the conflict so the user can re-apply their changes and Save again —
+   * the retry then carries the fresh `expectedVersion`. Never auto-submits and
+   * never reuses the stale version. A failed reload keeps the conflict open with
+   * a readable message so the user can retry the reload.
+   */
+  protected reloadLatest(): void {
+    const id = this.id();
+    if (id === undefined || this.reloading()) {
+      return; // create mode has no version to reload; guard re-entrancy
+    }
+    this.reloading.set(true);
+    this.reloadError.set(null);
+    this.saveError.set(null);
+    this.api
+      .linkById(id)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (link) => {
+          if (this.id() !== id) {
+            return;
+          }
+          this.applyLink(link); // form + version now reflect the latest server state
+          this.conflict.set(null);
+          this.reloading.set(false);
+        },
+        error: (err: unknown) => {
+          if (this.id() !== id) {
+            return;
+          }
+          this.reloadError.set(parseApiError(err).message);
+          this.reloading.set(false); // conflict stays open so the reload can be retried
+        },
+      });
+  }
+
   protected showError(control: FormFieldName): boolean {
     const c = this.form.controls[control];
     return c.invalid && (c.touched || c.dirty);
@@ -341,6 +432,9 @@ export class LinkFormView {
 
   protected submit(): void {
     this.saveError.set(null);
+    if (this.conflict() !== null) {
+      return; // stale version: must reload latest before saving again
+    }
     if (this.form.invalid) {
       this.form.markAllAsTouched();
       return;
@@ -381,6 +475,27 @@ export class LinkFormView {
 
   private onSaveError(err: unknown): void {
     this.saving.set(false);
-    this.saveError.set(parseApiError(err).message);
+    const parsed = parseApiError(err);
+    // Only a genuine version conflict gets the resolution flow. A duplicate-name
+    // 409 (and every other failure) stays an ordinary, readable save error.
+    if (parsed.code === 'VERSION_CONFLICT') {
+      this.conflict.set({ actualVersion: readActualVersion(parsed.details) });
+      this.saveError.set(null);
+      return;
+    }
+    this.saveError.set(parsed.message);
   }
+}
+
+/** Safely read `details.actualVersion` from a normalized API error. */
+function readActualVersion(details: unknown): number | null {
+  if (
+    typeof details === 'object' &&
+    details !== null &&
+    'actualVersion' in details &&
+    typeof (details as { actualVersion: unknown }).actualVersion === 'number'
+  ) {
+    return (details as { actualVersion: number }).actualVersion;
+  }
+  return null;
 }

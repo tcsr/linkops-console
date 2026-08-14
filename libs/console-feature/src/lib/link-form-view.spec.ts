@@ -153,4 +153,162 @@ describe('LinkFormView', () => {
     expect(matches).toHaveLength(1); // only one POST issued
     matches[0].flush(created('new-1'));
   });
+
+  describe('version conflict resolution (M7)', () => {
+    const conflictBody = (actualVersion: number) => ({
+      error: {
+        code: 'VERSION_CONFLICT',
+        message: 'Link was modified by someone else',
+        details: { expectedVersion: 1, actualVersion },
+      },
+    });
+
+    const conflictBanner = (el: HTMLElement) =>
+      el.querySelector('.msg.conflict');
+    const conflictText = (el: HTMLElement) =>
+      conflictBanner(el)?.textContent ?? '';
+    const reloadBtn = (el: HTMLElement) =>
+      el.querySelector('.msg.conflict .btn.primary') as HTMLButtonElement | null;
+    const saveBtn = (el: HTMLElement) =>
+      el.querySelector('.actions button[type="submit"]') as HTMLButtonElement;
+    const nameValue = (el: HTMLElement) =>
+      (el.querySelector('[formcontrolname="name"]') as HTMLInputElement).value;
+
+    /** Drive an edit into the VERSION_CONFLICT state (initial version 1). */
+    function editIntoConflict(actualVersion = 4) {
+      const fixture = setup('link-1');
+      http.expectOne('/links/link-1').flush(created('link-1')); // version 1
+      fixture.detectChanges();
+      const el = fixture.nativeElement as HTMLElement;
+      setInput(el, 'name', 'My Edit');
+      fixture.detectChanges();
+      submit(el);
+
+      const patch = http.expectOne('/links/link-1');
+      expect(patch.request.method).toBe('PATCH');
+      expect(patch.request.body.expectedVersion).toBe(1);
+      patch.flush(conflictBody(actualVersion), {
+        status: 409,
+        statusText: 'Conflict',
+      });
+      fixture.detectChanges();
+      return { fixture, el };
+    }
+
+    it('renders a resolvable conflict (not a generic save error) with Reload latest', () => {
+      const { el } = editIntoConflict(4);
+      expect(el.textContent).not.toContain('Save failed'); // #1
+      expect(conflictBanner(el)).not.toBeNull(); // #2
+      expect(conflictText(el)).toContain('changed elsewhere'); // #3
+      expect(conflictText(el)).toContain('stale');
+      expect(conflictText(el)).toContain('v4'); // actualVersion from details
+      expect(reloadBtn(el)?.textContent).toContain('Reload latest'); // #4
+      expect(saveBtn(el).disabled).toBe(true); // stale save blocked
+      expect(el.textContent).not.toContain('HttpErrorResponse');
+    });
+
+    it('blocks a stale re-submit while in conflict (old version not reused)', () => {
+      const { el } = editIntoConflict();
+      submit(el); // attempt to save again with the stale version
+      http.expectNone((r) => r.method === 'PATCH'); // #9/#13: no stale PATCH
+    });
+
+    it('reload latest fetches, replaces stale values, updates version, clears conflict', () => {
+      const { fixture, el } = editIntoConflict(4);
+
+      reloadBtn(el)?.click();
+      const get = http.expectOne('/links/link-1');
+      expect(get.request.method).toBe('GET'); // #5
+      get.flush({ ...created('link-1'), name: 'Server Renamed', version: 4 });
+      fixture.detectChanges();
+
+      expect(conflictBanner(el)).toBeNull(); // #8 conflict cleared
+      expect(nameValue(el)).toBe('Server Renamed'); // #6 latest replaces stale
+      expect(saveBtn(el).disabled).toBe(false); // #10 editable again
+      expect(router.navigate).not.toHaveBeenCalled(); // #9 not auto-submitted
+    });
+
+    it('retries with the new version after reload and navigates on success', () => {
+      const { fixture, el } = editIntoConflict(4);
+
+      reloadBtn(el)?.click();
+      http.expectOne('/links/link-1').flush({
+        ...created('link-1'),
+        name: 'Server Renamed',
+        version: 4,
+      });
+      fixture.detectChanges();
+
+      // user re-applies their change and saves again
+      setInput(el, 'name', 'User Reapplied');
+      fixture.detectChanges();
+      submit(el);
+
+      const patch = http.expectOne('/links/link-1');
+      expect(patch.request.method).toBe('PATCH');
+      expect(patch.request.body.expectedVersion).toBe(4); // #7/#11/#13 fresh version
+      expect(patch.request.body.name).toBe('User Reapplied');
+      patch.flush({ ...created('link-1'), name: 'User Reapplied', version: 5 });
+
+      expect(router.navigate).toHaveBeenCalledWith(['/links', 'link-1']); // #12
+    });
+
+    it('surfaces a reload network failure and allows retrying the reload', () => {
+      const { fixture, el } = editIntoConflict();
+
+      reloadBtn(el)?.click();
+      http.expectOne('/links/link-1').error(new ProgressEvent('error'), {
+        status: 0,
+        statusText: 'Unknown Error',
+      });
+      fixture.detectChanges();
+
+      expect(conflictText(el)).toContain('Reload failed'); // #14
+      expect(conflictText(el)).toContain('Could not reach the API.');
+      expect(conflictBanner(el)).not.toBeNull(); // conflict stays open
+
+      // #16 retry the reload — succeeds
+      reloadBtn(el)?.click();
+      http.expectOne('/links/link-1').flush({ ...created('link-1'), version: 4 });
+      fixture.detectChanges();
+      expect(conflictBanner(el)).toBeNull();
+    });
+
+    it('surfaces a 5xx reload failure readably (conflict stays open)', () => {
+      const { fixture, el } = editIntoConflict();
+
+      reloadBtn(el)?.click();
+      http.expectOne('/links/link-1').flush(
+        { error: { code: 'INTERNAL', message: 'Internal server error' } },
+        { status: 500, statusText: 'Server Error' },
+      );
+      fixture.detectChanges();
+
+      expect(conflictText(el)).toContain('Reload failed'); // #15
+      expect(conflictText(el)).toContain('Internal server error');
+      expect(conflictBanner(el)).not.toBeNull();
+    });
+
+    it('keeps a duplicate-name 409 as a normal save error, not a version conflict', () => {
+      const fixture = setup('link-1');
+      http.expectOne('/links/link-1').flush(created('link-1'));
+      fixture.detectChanges();
+      const el = fixture.nativeElement as HTMLElement;
+      setInput(el, 'name', 'Taken Name');
+      fixture.detectChanges();
+      submit(el);
+
+      http.expectOne('/links/link-1').flush(
+        { error: { code: 'DUPLICATE_LINK_NAME', message: 'Name already in use' } },
+        { status: 409, statusText: 'Conflict' },
+      );
+      fixture.detectChanges();
+
+      expect(el.textContent).toContain('Save failed'); // #17 generic error
+      expect(el.textContent).toContain('Name already in use');
+      expect(conflictBanner(el)).toBeNull(); // NOT the conflict UX
+      expect(saveBtn(el).disabled).toBe(false);
+      expect(router.navigate).not.toHaveBeenCalled();
+    });
+  });
 });
