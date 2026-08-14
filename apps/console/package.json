@@ -41,7 +41,7 @@
         "options": {
           "buildTarget": "@linkops/console:build",
           "port": 4200,
-          "proxyConfig": "apps/console/proxy.conf.json"
+          "proxyConfig": "apps/console/proxy.conf.cjs"
         },
         "configurations": {
           "development": { "buildTarget": "@linkops/console:build:development" },
