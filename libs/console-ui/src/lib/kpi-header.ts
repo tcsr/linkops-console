@@ -27,8 +27,24 @@ import type { FleetSummary } from '@linkops/domain';
   styles: `
     .kpis {
       display: grid;
-      grid-template-columns: repeat(4, minmax(0, 1fr)) 1.4fr;
-      gap: 0.85rem;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 0.75rem;
+      margin-bottom: 1.5rem;
+      width: 100%;
+    }
+    .tile.wide, .tile:nth-child(5) {
+      grid-column: span 2;
+    }
+    
+    @media (min-width: 768px) {
+      .kpis {
+        grid-template-columns: repeat(4, minmax(0, 1fr)) 1.4fr;
+        gap: 0.85rem;
+        margin-bottom: 2rem;
+      }
+      .tile.wide, .tile:nth-child(5) {
+        grid-column: auto;
+      }
     }
     .tile {
       position: relative;

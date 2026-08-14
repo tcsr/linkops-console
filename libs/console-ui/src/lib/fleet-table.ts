@@ -74,18 +74,25 @@ import type { FleetRow } from './fleet-row';
       border-radius: var(--radius);
       background: var(--panel);
       box-shadow: var(--shadow);
-      overflow: visible;
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
       transition: border-color 0.3s ease, box-shadow 0.3s ease;
     }
-    table { width: 100%; border-collapse: separate; border-spacing: 0; font-size: 0.92rem; }
+    table { width: 100%; min-width: 540px; border-collapse: separate; border-spacing: 0; font-size: 0.92rem; }
     thead th {
-      position: sticky; top: 3.75rem;
+      position: relative; top: 0;
       background: var(--panel-2);
       font-size: 0.72rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em;
       color: var(--muted);
       text-align: left; padding: 0.75rem 1.25rem; white-space: nowrap;
       border-bottom: 1px solid color-mix(in srgb, var(--border) 80%, transparent);
       z-index: 10;
+    }
+
+    @media (min-width: 992px) {
+      .card { overflow: visible; }
+      table { min-width: 100%; }
+      thead th { position: sticky; top: 3.75rem; }
     }
     thead th:first-child { border-top-left-radius: var(--radius); }
     thead th:last-child { border-top-right-radius: var(--radius); }
