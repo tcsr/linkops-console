@@ -6,7 +6,7 @@ strict, enforced architectural boundaries between a framework-independent domain
 core, data-access layers, feature layers, and the two applications (`api`, `console`).
 
 > **Milestone:** M7 — Concurrency + error handling (delete, 409 resolution)
-> **Status:** Implementation complete / pending review
+> **Status:** Implementation complete
 >
 > The domain, in-memory persistence, the 1 Hz telemetry simulator, a real NestJS
 > REST API, a live SSE stream (`GET /api/stream`), the **Angular 22 fleet view**
@@ -42,6 +42,24 @@ TypeScript is pinned in the workspace; no global install is required.
 npm install
 ```
 
+That is the only install step — there is no separate library build to run before
+tests or the app (see [Test](#common-commands) and [Configuration](#configuration)).
+
+## Configuration
+
+The application needs **no secrets** and runs with **zero configuration**. Every
+variable is optional with a sensible default.
+
+| Variable | What it does | Required | Default | Example |
+| -------- | ------------ | -------- | ------- | ------- |
+| `PORT` | Port the NestJS API listens on (the Angular dev server proxies to it). | No | `3000` | `PORT=4000` |
+
+- A committed [`.env.example`](.env.example) documents the above; copy it to a
+  local `.env` only to override a default. `.env` is gitignored.
+- There are **no credential-shaped variables**. The A2UI bonus (which would need
+  an AI provider key) is **not** implemented, so no such key is required and the
+  app runs fully without one.
+
 ## Common commands
 
 All tasks run through Nx. `run-many` fans out across every project.
@@ -62,6 +80,18 @@ npx nx run-many -t build
 
 Convenience npm scripts mirror these: `npm test`, `npm run typecheck`,
 `npm run lint`, `npm run build`.
+
+**Test a single project** (fast inner loop), e.g. the console feature library:
+
+```bash
+npx nx test @linkops/console-feature
+```
+
+Tests run straight from a clean checkout — `npm test` needs **no** prior build.
+Jest resolves the `@linkops/*` workspace packages to their TypeScript **source**
+(via the `@org/source` export condition that `tsconfig.base.json` also uses), so
+the whole suite is green on a fresh `git clone` + `npm install` with no `dist/`
+present. The full suite runs in well under a minute.
 
 ### Run it (API + Angular client together)
 
@@ -93,13 +123,21 @@ whose rules mirror the server's; on save it returns to the link's detail. Editin
 carries the link's `version` for optimistic concurrency.
 
 **Delete + conflict handling (M7):** the detail view has an inline **Delete** →
-**Confirm/Cancel** flow; a confirmed delete removes the link (`DELETE` → 204),
-prunes it from the live fleet, and returns to the fleet. If the edited link was
-changed elsewhere, the save returns **409 `VERSION_CONFLICT`** and the form shows
-a conflict banner with **Reload latest** — load the current server state, re-apply
+**Confirm/Cancel** flow. Delete outcomes:
+
+- **`204`** — the link is removed, pruned from the live fleet, and the view
+  returns to the fleet.
+- **`404`** — the link is already gone; this **completes** the delete flow (prune
+  + return to fleet), it is **not** treated as an error.
+- **network / `5xx`** — a readable message is shown, the user stays on the detail
+  page, and the delete can be retried.
+
+For editing, a stale save returns **409 `VERSION_CONFLICT`**: the form shows a
+conflict banner with **Reload latest** — load the current server state, re-apply
 your change, and Save again (the retry carries the fresh `expectedVersion`). A
-stale save is blocked until you reload. Delete/save/reload failures (network, 404,
-5xx) surface as readable messages, never a silent no-op or a bare console error.
+stale save is blocked until you reload. `DELETE` carries no version, so it never
+produces a version-conflict 409. Save/reload validation and transport failures
+surface as readable messages — never a silent no-op or a bare console error.
 
 Run each separately with `npm run dev:api` and `npm run dev:console`.
 
@@ -208,6 +246,140 @@ other; both may depend on `scope:shared` (the domain).
 
 ---
 
+## How it works
+
+End-to-end flow (telemetry out, user actions in). Detailed design lives in
+[`docs/architecture/`](docs/architecture); this is the map.
+
+```
+                    ┌───────────────────────── browser (Angular 22, zoneless) ─────────────────────────┐
+                    │  FleetView / LinkDetailView / LinkFormView   (standalone components, signals)     │
+                    │            │  read signals                        │ user actions                  │
+                    │      FleetStore / LinkDetailStore  ───────────────┘ (create/edit/delete)          │
+                    └──────┬─────────────────────▲──────────────────────────────┬─────────────────────-┘
+              EventSource  │ SSE (live)          │ REST snapshot                │ REST mutations
+              GET /api/stream                    │ GET /links, /links/:id, …    │ POST/PATCH/DELETE /links
+                           ▼                     │                              ▼
+        ┌──────────────────────────────── NestJS API ───────────────────────────────────────────────┐
+        │  StreamController @Sse('api/stream')     LinksController / FleetController (thin)           │
+        │        ▲  FleetEventBus (RxJS Subject)          │  LinksService / FleetService             │
+        │        │                                        ▼                                          │
+        │  TelemetryStreamService  ◄── TelemetrySink ──  LinkRepository (interface, @linkops/domain)  │
+        │        ▲                                        │                                          │
+        │  TelemetrySimulator (1 Hz) ────────────────►  InMemoryLinkRepository: Map<LinkId,Link>     │
+        │                                                 + per-link bounded RingBuffer (300 samples) │
+        └────────────────────────────────────────────────────────────────────────────────────────────┘
+```
+
+- **Telemetry out:** the simulator ticks at 1 Hz, writes each sample to the
+  repository ring buffer **and** hands the batch to `TelemetrySink` →
+  `TelemetryStreamService` derives status (`deriveLinkStatus`) → `FleetEventBus`
+  → `@Sse('api/stream')`. The client `FleetStore` owns the single `EventSource`
+  and applies buffered events **once per animation frame** (no 1 Hz storm).
+- **Actions in:** components call stores → `FleetApi` (REST). Status is derived
+  server-side; validation is enforced on both sides.
+- **Reconnect:** native `EventSource` reconnects live-only (no server replay);
+  history gaps are recovered via `GET /links/:id/telemetry`. See
+  [`docs/architecture/sse.md`](docs/architecture/sse.md).
+
+## Common tasks
+
+Where things go and the command to prove it — the dependency rule ([above](#dependency-rules))
+tells you the layer.
+
+| Task | Where | Then |
+| ---- | ----- | ---- |
+| Add/change a **domain model or rule** | `libs/domain/src/lib/*` (types, `deriveLinkStatus`, constraints) — the one source of truth | `npx nx test @linkops/domain` |
+| Add/change a **backend endpoint** | `libs/api-feature/src/lib` (controller + DTO + service); map new domain errors in `api-exception.filter.ts` | `npx nx test @linkops/api-feature` |
+| Change **persistence** | `libs/api-data-access` (`InMemoryLinkRepository`) behind the `LinkRepository` interface | `npx nx test @linkops/api-data-access` |
+| Add/change a **frontend panel/feature** | `libs/console-feature` (routed containers) + `libs/console-ui` (presentational) + `libs/console-data-access` (stores/REST) | `npx nx test @linkops/console-feature` |
+| Add/update **tests** | co-located `*.spec.ts` next to the unit | `npx nx test <project>` |
+| **Full validation** | — | `npm test && npm run typecheck && npm run lint && npm run build` |
+
+After changing cross-project imports, run `npx nx sync` to update TypeScript
+project references.
+
+## Troubleshooting
+
+| Symptom | Fix |
+| ------- | --- |
+| **Port 3000 in use** (`EADDRINUSE`) | Another API is running. Stop it, or start with a different port: `PORT=4000 npm run dev:api` (update the proxy target if you also run the client). |
+| **Port 4200 in use** | Another dev server is running. Stop it, or run `npx nx serve @linkops/console --port 4300`. |
+| **`Cannot find module '@linkops/…'` in tests** | You should not hit this — Jest resolves workspace libs to source. If you do, you are on an older checkout; pull latest (the fix lives in the `libs/console-*/jest.config.cts` `customExportConditions`). No build is required before `npm test`. |
+| **Stale build artifacts / odd type errors** | Remove generated output and re-run: delete `dist/`, `out-tsc/`, `.nx/cache`, `*.tsbuildinfo`, then `npm test`. Tests need no `dist/`. |
+| **SSE not updating in the UI** | Confirm the API is up (`GET /api/stream` returns `text/event-stream`). Background browser tabs throttle `requestAnimationFrame`, so the coalesced repaint pauses while the tab is hidden — focus the tab. A proxy that buffers `text/event-stream` will also stall it. |
+| **API unavailable / blank fleet** | The client proxies `/links`, `/fleet`, `/api` to `:3000` (`apps/console/proxy.conf.cjs`). Ensure the API started (`[linkops-api] … listening on :3000`). |
+| **Deep link (`/links/:id`) 404s on refresh** | The dev proxy bypass serves `index.html` for HTML navigations; if you changed the proxy, keep that bypass so the SPA router owns deep links. |
+
+## Decisions, gaps & next steps
+
+### Three decisions (and the alternative rejected)
+
+1. **Nx monorepo with enforced library boundaries** — one library per layer per
+   scope (`domain`, `data-access`, `feature`, `ui`), tags + `@nx/enforce-module-boundaries`
+   so a boundary violation **fails lint**.
+   *Rejected:* two plain folders (`api/`, `client/`). Faster to start, but nothing
+   stops the domain importing Angular later; the boundary would be a convention,
+   not a guarantee.
+2. **Angular zoneless + signal-first state** — `provideZonelessChangeDetection()`,
+   no zone.js; SSE events fold into signals and repaint once per animation frame.
+   *Rejected:* default zone.js change detection. It "just works" but re-checks the
+   whole tree on every async event — a change-detection storm at 1 Hz across the
+   fleet, the exact failure mode the brief calls out.
+3. **SSE is live-only (no server-side replay)** — a reconnect opens a fresh
+   subscription; historical gaps are refetched from `GET /links/:id/telemetry`.
+   *Rejected:* a `Last-Event-ID` replay buffer. It survives gaps transparently but
+   adds unbounded per-client server memory and replay-ordering complexity for a
+   dashboard where the latest value is what matters.
+
+A fourth, smaller one: **after a delete the client prunes the row locally**
+(`FleetStore.removeLink`) rather than refetching, because the M4 stream carries no
+`link.deleted` event. *Trade-off:* a link deleted by **another** client only
+disappears on the next full snapshot load — an accepted limitation of the
+live-only contract.
+
+### Where this breaks at ~10,000 links
+
+Today's fleet is ~10. The first thing to break at 10k is the **client fleet
+model and render path**, not the backend:
+
+- Every tick currently produces up to *N* `link.telemetry` frames plus one
+  `fleet.summary`; at 10k that is ~10k messages/second over one `EventSource`,
+  and `FleetStore` rebuilds a `Map` of 10k rows each coalesced frame. Even at one
+  repaint per frame, diffing/rendering 10k rows is the bottleneck.
+- **First fix:** stop streaming per-link telemetry to the fleet view. Push only
+  `fleet.summary` + `link.status` **transitions** to the list, virtualize the
+  table (render only visible rows), and subscribe to per-link telemetry **only on
+  the detail view** for the open link. Move filtering/sorting server-side
+  (`GET /links` already supports it) so the client never holds the full set.
+- Secondary: the in-memory `Map` + per-link 300-sample ring buffers are ~O(N)
+  memory; at 10k that is fine in RAM but is the point to swap `InMemoryLinkRepository`
+  for the durable implementation the `LinkRepository` interface already allows.
+
+### What another day would buy
+
+1. Resolve the clean-checkout **Angular app build** fragility (a nested
+   `@babel/helper-validator-identifier` `#identifier` resolution error under
+   esbuild) so `npm run build` / `npm run dev` are green on a fresh clone.
+2. A **CI workflow** (lint + typecheck + test + build) — bonus B6.
+3. Table **virtualization** + the fleet-view streaming change above (the 10k path).
+4. Broader **accessibility** passes on the form/detail and a couple of ADRs for
+   the decisions above.
+
+### AI usage
+
+This codebase was built with AI assistance (Claude Code) under human direction,
+milestone by milestone, through explicit review gates; all commits are authored by
+the repository owner. One concrete override: the AI's milestone reports initially
+declared M7 "ready" based on a **warm working tree** where `dist/` already existed.
+A clean-checkout audit (`git clone` + `npm install` + `npm test`) was run instead
+and **failed** — the tests were resolving workspace libraries through gitignored
+`dist/`. The reported "green" was rejected, the resolution was traced to Jest not
+applying the `@org/source` export condition, and the fix (source resolution in the
+console Jest configs) was validated from a fresh clone. Runtime claims were treated
+the same way — the 409 conflict flow was verified with a real two-tab test against
+a running backend, not assumed from unit tests.
+
 ## Milestone progress
 
 | Milestone | Description | Status |
@@ -218,7 +390,7 @@ other; both may depend on `scope:shared` (the domain).
 | **M4** | Live stream over SSE (backend `GET /api/stream`) | ✅ complete |
 | **M5** | Angular fleet view (live status/throughput, KPI header, URL filter/sort) | ✅ complete |
 | **M6** | Link detail (live sparkline) + validated create/edit form | ✅ complete |
-| **M7** | Concurrency / error UX (409 resolution, delete confirmation, failure messaging) | ✅ implementation complete / pending review |
+| **M7** | Concurrency / error UX (409 resolution, delete confirmation, failure messaging) | ✅ complete |
 | **M8** | Tests that mean something (backend unit + HTTP contract test; frontend store + component tests) | ✅ requirement satisfied |
 
 ### Telemetry simulator (M2)
