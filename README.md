@@ -219,7 +219,7 @@ other; both may depend on `scope:shared` (the domain).
 | **M5** | Angular fleet view (live status/throughput, KPI header, URL filter/sort) | ✅ complete |
 | **M6** | Link detail (live sparkline) + validated create/edit form | ✅ complete |
 | **M7** | Concurrency / error UX (409 resolution, delete confirmation, failure messaging) | ✅ implementation complete / pending review |
-| M8 | Tests beyond current scope | ⏳ not started |
+| **M8** | Tests that mean something (backend unit + HTTP contract test; frontend store + component tests) | ✅ requirement satisfied |
 
 ### Telemetry simulator (M2)
 
