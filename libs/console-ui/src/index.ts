@@ -4,3 +4,4 @@ export { StatusBadge } from './lib/status-badge';
 export { KpiHeader } from './lib/kpi-header';
 export { FleetTable } from './lib/fleet-table';
 export { ThemeToggle } from './lib/theme-toggle';
+export { Sparkline } from './lib/sparkline';

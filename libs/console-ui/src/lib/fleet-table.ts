@@ -1,10 +1,17 @@
-import { ChangeDetectionStrategy, Component, input } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  input,
+  output,
+} from '@angular/core';
 import { StatusBadge } from './status-badge';
 import type { FleetRow } from './fleet-row';
 
 /**
  * Presentational fleet list. Rows are tracked by `id` so a live update mutates
- * only the changed row rather than recreating the collection.
+ * only the changed row rather than recreating the collection. Selecting a row's
+ * name emits `rowSelect` with the link id; the container decides where to
+ * navigate, keeping this component router-agnostic.
  */
 @Component({
   selector: 'lo-fleet-table',
@@ -22,7 +29,11 @@ import type { FleetRow } from './fleet-row';
         <tbody>
           @for (row of rows(); track row.id) {
             <tr>
-              <td class="name">{{ row.name }}</td>
+              <td class="name">
+                <button type="button" class="name-btn" (click)="rowSelect.emit(row.id)">
+                  {{ row.name }}
+                </button>
+              </td>
               <td class="sites">{{ row.siteA }} <span class="arr">↔</span> {{ row.siteB }}</td>
               <td><span class="band">{{ row.band }}</span></td>
               <td><lo-status-badge [status]="row.status" /></td>
@@ -88,6 +99,14 @@ import type { FleetRow } from './fleet-row';
     tbody tr:hover { background: color-mix(in srgb, var(--accent) 4%, var(--panel-2)); }
     tbody tr:hover td:first-child { box-shadow: inset 4px 0 0 0 var(--accent); }
     .name { font-weight: 700; color: var(--text); }
+    .name-btn {
+      font: inherit; font-weight: 700; color: var(--text);
+      background: none; border: none; padding: 0; cursor: pointer;
+      text-align: left; border-radius: 4px;
+      transition: color 0.2s ease;
+    }
+    .name-btn:hover { color: var(--accent); text-decoration: underline; text-underline-offset: 2px; }
+    .name-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
     .sites { color: var(--muted); font-size: 0.88rem; }
     .arr { color: var(--faint); padding: 0 0.2rem; }
     .band {
@@ -135,6 +154,8 @@ import type { FleetRow } from './fleet-row';
 })
 export class FleetTable {
   readonly rows = input.required<readonly FleetRow[]>();
+  /** Emits the id of the link whose name was activated. */
+  readonly rowSelect = output<string>();
 
   protected pct(row: FleetRow): number {
     if (row.throughputMbps === null || row.capacityMbps <= 0) {
