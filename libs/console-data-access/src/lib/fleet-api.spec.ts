@@ -68,4 +68,21 @@ describe('FleetApi (detail + mutations)', () => {
     expect(req.request.body).toEqual(payload);
     req.flush({});
   });
+
+  it('DELETE /links/:id and completes on 204', () => {
+    let completed = false;
+    api.delete('link-1').subscribe({ complete: () => (completed = true) });
+    const req = http.expectOne('/links/link-1');
+    expect(req.request.method).toBe('DELETE');
+    // 204 No Content: the server sends no body; the stream still completes.
+    req.flush(null, { status: 204, statusText: 'No Content' });
+    expect(completed).toBe(true);
+  });
+
+  it('encodes the id in the DELETE url', () => {
+    api.delete('a/b').subscribe();
+    const req = http.expectOne('/links/a%2Fb');
+    expect(req.request.method).toBe('DELETE');
+    req.flush(null, { status: 204, statusText: 'No Content' });
+  });
 });

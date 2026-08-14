@@ -8,7 +8,7 @@ import {
 } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { forkJoin } from 'rxjs';
-import type { FleetSummary } from '@linkops/domain';
+import type { FleetSummary, LinkId } from '@linkops/domain';
 import { FleetApi } from './fleet-api';
 import {
   EMPTY_FLEET,
@@ -124,6 +124,27 @@ export class FleetStore {
     source.onerror = () => {
       this.connectionState.set('reconnecting');
     };
+  }
+
+  /**
+   * Remove a single link from the fleet model (M7 delete). The M4 stream carries
+   * no per-link delete event, so a client that deletes a link prunes the row
+   * locally instead of refetching the whole snapshot. Other rows and the KPI
+   * summary are left untouched; a no-op when the id is unknown so a redundant
+   * call cannot corrupt state. Late SSE events for the removed id fold to a
+   * no-op — {@link applyEvents} ignores events for rows absent from the model.
+   */
+  removeLink(id: string): void {
+    // Row keys are branded LinkIds; the id here comes from an already-loaded row.
+    const key = id as LinkId;
+    this.model.update((current) => {
+      if (!current.rows.has(key)) {
+        return current; // unknown id: no change, keep the same reference
+      }
+      const rows = new Map(current.rows);
+      rows.delete(key);
+      return { rows, summary: current.summary };
+    });
   }
 
   /** Close the stream and drop any pending frame/buffer. */

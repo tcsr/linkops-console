@@ -231,4 +231,51 @@ describe('FleetStore', () => {
     store.connect();
     expect(FakeEventSource.last).toBe(first); // no new source created
   });
+
+  describe('removeLink (M7 delete)', () => {
+    it('removes the matching row and keeps the others', () => {
+      loadSnapshot([view('link-1'), view('link-2')]);
+      store.removeLink('link-1');
+      const rows = store.rows();
+      expect(rows).toHaveLength(1);
+      expect(rows.find((r) => r.id === 'link-1')).toBeUndefined();
+      expect(rows.find((r) => r.id === 'link-2')).toBeDefined();
+    });
+
+    it('preserves the KPI summary and does not refetch', () => {
+      loadSnapshot([view('link-1'), view('link-2')]);
+      store.removeLink('link-1');
+      // No new /links or /fleet/summary request is issued (afterEach verifies).
+      expect(store.summary()?.total).toBe(2);
+    });
+
+    it('is a no-op for an unknown id (same model reference)', () => {
+      loadSnapshot([view('link-1'), view('link-2')]);
+      const before = store.rows();
+      store.removeLink('does-not-exist');
+      expect(store.rows()).toBe(before); // unchanged reference: no signal churn
+    });
+
+    it('ignores a late SSE event for the removed id (no resurrection)', () => {
+      loadSnapshot([view('link-1'), view('link-2')]);
+      store.connect();
+      const es = currentSource();
+      es.open();
+      store.removeLink('link-1');
+
+      // A late frame for the deleted link must not recreate its row...
+      es.emit('link.telemetry', {
+        linkId: 'link-1', ts: '2026-08-05T09:00:02.000Z', rssiDbm: -55, snrDb: 25, throughputMbps: 99,
+      });
+      // ...while a frame for a surviving link still folds in (SSE unchanged).
+      es.emit('link.telemetry', {
+        linkId: 'link-2', ts: '2026-08-05T09:00:02.000Z', rssiDbm: -55, snrDb: 25, throughputMbps: 70,
+      });
+      scheduler.flush();
+
+      expect(store.rows().find((r) => r.id === 'link-1')).toBeUndefined();
+      expect(store.rows()).toHaveLength(1);
+      expect(store.rows().find((r) => r.id === 'link-2')?.latestSample?.throughputMbps).toBe(70);
+    });
+  });
 });

@@ -65,4 +65,13 @@ export class FleetApi {
       payload,
     );
   }
+
+  /**
+   * `DELETE /links/:id` — remove a link. The server responds 204 (no body), so
+   * the stream completes with `void`; a 404 (unknown link) surfaces as an error
+   * for the caller to interpret (M7 treats it as "already gone").
+   */
+  delete(id: string): Observable<void> {
+    return this.http.delete<void>(`/links/${encodeURIComponent(id)}`);
+  }
 }
