@@ -3,6 +3,14 @@ export { linkId } from './lib/link-id.js';
 export type { LinkId } from './lib/link-id.js';
 
 export { LINK_NAME_CONSTRAINTS } from './lib/link.js';
+export {
+  BANDS,
+  MODES,
+  CHANNEL_WIDTHS,
+  CAPACITY_MBPS,
+  TX_POWER_DBM,
+  SITE_LENGTH,
+} from './lib/link-constraints.js';
 export type {
   Band,
   ChannelWidth,
